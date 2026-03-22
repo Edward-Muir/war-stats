@@ -1,10 +1,10 @@
-import type { UnitDatasheet } from "../../types/data";
-import type { ConfiguredModel, SelectedWeapon } from "../../types/config";
-import { StatLine } from "../shared/StatLine";
-import { ModelCountSelector } from "./ModelCountSelector";
-import { WargearConfigurator } from "./WargearConfigurator";
-import { WeaponSelector } from "./WeaponSelector";
-import { getAvailableWeapons } from "../../logic/unit-config";
+import type { UnitDatasheet } from '../../types/data';
+import type { ConfiguredModel, SelectedWeapon } from '../../types/config';
+import { StatLine } from '../shared/StatLine';
+import { ModelCountSelector } from './ModelCountSelector';
+import { WargearConfigurator } from './WargearConfigurator';
+import { WeaponSelector } from './WeaponSelector';
+import { getAvailableWeapons } from '../../logic/unit-config';
 
 interface Props {
   datasheet: UnitDatasheet;
@@ -13,7 +13,8 @@ interface Props {
   /** Only shown for attacker */
   selectedWeapons?: SelectedWeapon[];
   onWeaponsChange?: (weapons: SelectedWeapon[]) => void;
-  side: "attacker" | "defender";
+  side: 'attacker' | 'defender';
+  attackMode?: 'ranged' | 'melee';
 }
 
 export function UnitConfigurator({
@@ -23,20 +24,20 @@ export function UnitConfigurator({
   selectedWeapons,
   onWeaponsChange,
   side,
+  attackMode = 'ranged',
 }: Props) {
   const available = getAvailableWeapons(datasheet, models);
 
   return (
     <div className="unit-configurator">
       <h3>{datasheet.name}</h3>
-      <StatLine
-        stats={datasheet.stats}
-        invulnerableSave={datasheet.invulnerable_save}
-      />
+      <StatLine stats={datasheet.stats} invulnerableSave={datasheet.invulnerable_save} />
 
       <div className="unit-keywords">
         {datasheet.keywords.map((k) => (
-          <span key={k} className="keyword-badge keyword-unit">{k}</span>
+          <span key={k} className="keyword-badge keyword-unit">
+            {k}
+          </span>
         ))}
       </div>
 
@@ -46,21 +47,18 @@ export function UnitConfigurator({
         onChange={onModelsChange}
       />
 
-      <WargearConfigurator
-        datasheet={datasheet}
-        models={models}
-        onChange={onModelsChange}
-      />
+      <WargearConfigurator datasheet={datasheet} models={models} onChange={onModelsChange} />
 
-      {side === "attacker" && selectedWeapons && onWeaponsChange && (
+      {side === 'attacker' && selectedWeapons && onWeaponsChange && (
         <WeaponSelector
           available={available}
           selected={selectedWeapons}
           onChange={onWeaponsChange}
+          attackMode={attackMode}
         />
       )}
 
-      {side === "defender" && (
+      {side === 'defender' && (
         <div className="defender-weapons-info">
           <label>Weapons (for reference)</label>
           {datasheet.weapons.map((w) => (

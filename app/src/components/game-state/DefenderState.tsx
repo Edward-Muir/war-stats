@@ -1,4 +1,4 @@
-import type { DefenderGameState } from "../../types/config";
+import type { DefenderGameState } from '../../types/config';
 
 interface Props {
   state: DefenderGameState;
@@ -9,23 +9,21 @@ export function DefenderState({ state, onChange }: Props) {
   return (
     <div className="game-state">
       <label>Game State</label>
-      <div className="toggle-group">
-        <label>
-          <input
-            type="checkbox"
-            checked={state.benefitOfCover}
-            onChange={(e) => onChange({ benefitOfCover: e.target.checked })}
-          />
+      <div className="chip-group">
+        <button
+          type="button"
+          className={`chip ${state.benefitOfCover ? 'chip--active' : ''}`}
+          onClick={() => onChange({ benefitOfCover: !state.benefitOfCover })}
+        >
           Benefit of Cover
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={state.stealthAll}
-            onChange={(e) => onChange({ stealthAll: e.target.checked })}
-          />
+        </button>
+        <button
+          type="button"
+          className={`chip ${state.stealthAll ? 'chip--active' : ''}`}
+          onClick={() => onChange({ stealthAll: !state.stealthAll })}
+        >
           Stealth (all models)
-        </label>
+        </button>
       </div>
     </div>
   );

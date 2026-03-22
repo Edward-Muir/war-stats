@@ -1,18 +1,15 @@
-import { create } from "zustand";
-import type { FactionIndex, FactionDatasheets, FactionRules } from "../types/data";
-import { fetchFactionIndex, fetchFactionData } from "../data/loader";
-import { createAttackerSlice, type AttackerSlice } from "./slices/attacker";
-import { createDefenderSlice, type DefenderSlice } from "./slices/defender";
-import { createSimulationSlice, type SimulationSlice } from "./slices/simulation";
+import { create } from 'zustand';
+import type { FactionIndex, FactionDatasheets, FactionRules } from '../types/data';
+import { fetchFactionIndex, fetchFactionData } from '../data/loader';
+import { createAttackerSlice, type AttackerSlice } from './slices/attacker';
+import { createDefenderSlice, type DefenderSlice } from './slices/defender';
+import { createSimulationSlice, initAutoRun, type SimulationSlice } from './slices/simulation';
 
 // ─── Data cache slice ────────────────────────────────────────────
 
 interface DataSlice {
   factionIndex: FactionIndex | null;
-  loadedFactions: Record<
-    string,
-    { datasheets: FactionDatasheets; rules: FactionRules }
-  >;
+  loadedFactions: Record<string, { datasheets: FactionDatasheets; rules: FactionRules }>;
   loadFactionIndex: () => Promise<void>;
   loadFaction: (slug: string) => Promise<void>;
 }
@@ -33,7 +30,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
       const index = await fetchFactionIndex();
       a[0]({ factionIndex: index });
     } catch (err) {
-      console.error("Failed to load faction index:", err);
+      console.error('Failed to load faction index:', err);
     }
   },
 
@@ -56,3 +53,6 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...createDefenderSlice(...a),
   ...createSimulationSlice(...a),
 }));
+
+// Start auto-run subscription
+initAutoRun(useAppStore);

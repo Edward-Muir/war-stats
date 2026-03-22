@@ -1,15 +1,16 @@
-import type { StateCreator } from "zustand";
-import type { Stratagem } from "../../types/data";
+import type { StateCreator } from 'zustand';
+import type { Stratagem } from '../../types/data';
 import type {
   AttackerGameState,
   ConfiguredModel,
   SelectedWeapon,
   WargearChoice,
   ActiveStratagem,
-} from "../../types/config";
-import { DEFAULT_ATTACKER_STATE } from "../../types/config";
-import { buildDefaultModels } from "../../logic/wargear";
-import type { AppStore } from "../store";
+} from '../../types/config';
+import { DEFAULT_ATTACKER_STATE } from '../../types/config';
+import { buildDefaultModels } from '../../logic/wargear';
+import { getAvailableWeapons } from '../../logic/unit-config';
+import type { AppStore } from '../store';
 
 export interface AttackerSlice {
   attacker: {
@@ -32,7 +33,7 @@ export interface AttackerSlice {
   resetAttacker: () => void;
 }
 
-const initialAttacker: AttackerSlice["attacker"] = {
+const initialAttacker: AttackerSlice['attacker'] = {
   factionSlug: null,
   detachmentName: null,
   unitName: null,
@@ -43,10 +44,7 @@ const initialAttacker: AttackerSlice["attacker"] = {
   activeStratagems: [],
 };
 
-export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> = (
-  set,
-  get,
-) => ({
+export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> = (set, get) => ({
   attacker: { ...initialAttacker },
 
   setAttackerFaction: (slug) =>
@@ -77,6 +75,11 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
     if (!datasheet) return;
 
     const models = buildDefaultModels(datasheet);
+    const available = getAvailableWeapons(datasheet, models);
+    const selectedWeapons = available.map(({ weapon, maxFiringModels }) => ({
+      weapon,
+      firingModelCount: maxFiringModels,
+    }));
 
     set({
       attacker: {
@@ -84,14 +87,13 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         unitName: name,
         models,
         wargearChoices: [],
-        selectedWeapons: [],
+        selectedWeapons,
         activeStratagems: [],
       },
     });
   },
 
-  setAttackerModels: (models) =>
-    set((state) => ({ attacker: { ...state.attacker, models } })),
+  setAttackerModels: (models) => set((state) => ({ attacker: { ...state.attacker, models } })),
 
   setAttackerSelectedWeapons: (weapons) =>
     set((state) => ({ attacker: { ...state.attacker, selectedWeapons: weapons } })),
@@ -107,9 +109,7 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
   toggleAttackerStratagem: (stratagem) =>
     set((state) => {
       const existing = state.attacker.activeStratagems;
-      const isActive = existing.some(
-        (a) => a.stratagem.name === stratagem.name,
-      );
+      const isActive = existing.some((a) => a.stratagem.name === stratagem.name);
       return {
         attacker: {
           ...state.attacker,

@@ -1,28 +1,50 @@
-import { useAppStore } from "../../store/store";
-import { useFactionData } from "../../data/hooks";
-import { FactionPicker } from "../faction/FactionPicker";
-import { DetachmentPicker } from "../faction/DetachmentPicker";
-import { UnitPicker } from "../faction/UnitPicker";
-import { UnitConfigurator } from "../unit-config/UnitConfigurator";
-import { AttackerState } from "../game-state/AttackerState";
-import { DefenderState } from "../game-state/DefenderState";
-import { StratagemPicker } from "../game-state/StratagemPicker";
-import { SimulationControls } from "../simulation/SimulationControls";
-import { ResultsSummary } from "../simulation/ResultsSummary";
-import { ResultsChart } from "../simulation/ResultsChart";
-import { filterAttackerStratagems, filterDefenderStratagems } from "../../logic/stratagems";
+import { useEffect, useRef } from 'react';
+import { useAppStore } from '../../store/store';
+import { useFactionData } from '../../data/hooks';
+import { FactionPicker } from '../faction/FactionPicker';
+import { DetachmentPicker } from '../faction/DetachmentPicker';
+import { UnitPicker } from '../faction/UnitPicker';
+import { UnitConfigurator } from '../unit-config/UnitConfigurator';
+import { GameState } from '../game-state/GameState';
+import { StratagemPicker } from '../game-state/StratagemPicker';
+import { SimulationStatus } from '../simulation/SimulationControls';
+import { ResultsSummary } from '../simulation/ResultsSummary';
+import { ResultsChart } from '../simulation/ResultsChart';
+import { filterAttackerStratagems, filterDefenderStratagems } from '../../logic/stratagems';
 
 export function AppShell() {
+  const attackMode = useAppStore((s) => s.attacker.gameState.attackMode);
+  const setAttackerGameState = useAppStore((s) => s.setAttackerGameState);
+
   return (
     <div className="app-shell">
       <header className="app-header">
         <h1>WH40K Damage Calculator</h1>
         <p>10th Edition Attack Sequence Simulator</p>
       </header>
+
+      <div className="attack-mode-toggle">
+        <button
+          type="button"
+          className={`attack-mode-btn ${attackMode === 'ranged' ? 'attack-mode-btn--active' : ''}`}
+          onClick={() => setAttackerGameState({ attackMode: 'ranged' })}
+        >
+          Ranged
+        </button>
+        <button
+          type="button"
+          className={`attack-mode-btn ${attackMode === 'melee' ? 'attack-mode-btn--active' : ''}`}
+          onClick={() => setAttackerGameState({ attackMode: 'melee' })}
+        >
+          Melee
+        </button>
+      </div>
+
       <div className="app-panels">
         <AttackerPanel />
-        <ResultsPanel />
         <DefenderPanel />
+        <GameStateSection />
+        <ResultsPanel />
       </div>
     </div>
   );
@@ -35,27 +57,22 @@ function AttackerPanel() {
   const setUnit = useAppStore((s) => s.setAttackerUnit);
   const setModels = useAppStore((s) => s.setAttackerModels);
   const setWeapons = useAppStore((s) => s.setAttackerSelectedWeapons);
-  const setGameState = useAppStore((s) => s.setAttackerGameState);
   const toggleStratagem = useAppStore((s) => s.toggleAttackerStratagem);
   const loadFaction = useAppStore((s) => s.loadFaction);
 
   const { data } = useFactionData(attacker.factionSlug);
 
-  const datasheet = data?.datasheets.datasheets.find(
-    (d) => d.name === attacker.unitName,
-  );
-  const detachment = data?.rules.detachments.find(
-    (d) => d.name === attacker.detachmentName,
-  );
+  const datasheet = data?.datasheets.datasheets.find((d) => d.name === attacker.unitName);
+  const detachment = data?.rules.detachments.find((d) => d.name === attacker.detachmentName);
 
   const applicableStratagems =
-    detachment && datasheet
-      ? filterAttackerStratagems(detachment, datasheet)
-      : [];
+    detachment && datasheet ? filterAttackerStratagems(detachment, datasheet) : [];
 
   return (
-    <div className="panel attacker-panel">
-      <h2>Attacker</h2>
+    <details className="panel attacker-panel" open>
+      <summary>
+        <h2>Attacker</h2>
+      </summary>
 
       <FactionPicker
         label="Attacking Faction"
@@ -90,13 +107,7 @@ function AttackerPanel() {
           selectedWeapons={attacker.selectedWeapons}
           onWeaponsChange={setWeapons}
           side="attacker"
-        />
-      )}
-
-      {datasheet && (
-        <AttackerState
-          state={attacker.gameState}
-          onChange={setGameState}
+          attackMode={attacker.gameState.attackMode}
         />
       )}
 
@@ -107,7 +118,7 @@ function AttackerPanel() {
           onToggle={toggleStratagem}
         />
       )}
-    </div>
+    </details>
   );
 }
 
@@ -117,27 +128,22 @@ function DefenderPanel() {
   const setDetachment = useAppStore((s) => s.setDefenderDetachment);
   const setUnit = useAppStore((s) => s.setDefenderUnit);
   const setModels = useAppStore((s) => s.setDefenderModels);
-  const setGameState = useAppStore((s) => s.setDefenderGameState);
   const toggleStratagem = useAppStore((s) => s.toggleDefenderStratagem);
   const loadFaction = useAppStore((s) => s.loadFaction);
 
   const { data } = useFactionData(defender.factionSlug);
 
-  const datasheet = data?.datasheets.datasheets.find(
-    (d) => d.name === defender.unitName,
-  );
-  const detachment = data?.rules.detachments.find(
-    (d) => d.name === defender.detachmentName,
-  );
+  const datasheet = data?.datasheets.datasheets.find((d) => d.name === defender.unitName);
+  const detachment = data?.rules.detachments.find((d) => d.name === defender.detachmentName);
 
   const applicableStratagems =
-    detachment && datasheet
-      ? filterDefenderStratagems(detachment, datasheet)
-      : [];
+    detachment && datasheet ? filterDefenderStratagems(detachment, datasheet) : [];
 
   return (
-    <div className="panel defender-panel">
-      <h2>Defender</h2>
+    <details className="panel defender-panel">
+      <summary>
+        <h2>Defender</h2>
+      </summary>
 
       <FactionPicker
         label="Defending Faction"
@@ -173,13 +179,6 @@ function DefenderPanel() {
         />
       )}
 
-      {datasheet && (
-        <DefenderState
-          state={defender.gameState}
-          onChange={setGameState}
-        />
-      )}
-
       {applicableStratagems.length > 0 && (
         <StratagemPicker
           available={applicableStratagems}
@@ -187,7 +186,28 @@ function DefenderPanel() {
           onToggle={toggleStratagem}
         />
       )}
-    </div>
+    </details>
+  );
+}
+
+function GameStateSection() {
+  const attackerState = useAppStore((s) => s.attacker.gameState);
+  const defenderState = useAppStore((s) => s.defender.gameState);
+  const setAttackerGameState = useAppStore((s) => s.setAttackerGameState);
+  const setDefenderGameState = useAppStore((s) => s.setDefenderGameState);
+
+  return (
+    <details className="panel game-state-panel">
+      <summary>
+        <h2>Game State</h2>
+      </summary>
+      <GameState
+        attackerState={attackerState}
+        defenderState={defenderState}
+        onAttackerChange={setAttackerGameState}
+        onDefenderChange={setDefenderGameState}
+      />
+    </details>
   );
 }
 
@@ -195,29 +215,28 @@ function ResultsPanel() {
   const simulation = useAppStore((s) => s.simulation);
   const attacker = useAppStore((s) => s.attacker);
   const defender = useAppStore((s) => s.defender);
-  const setIterations = useAppStore((s) => s.setIterations);
-  const runSim = useAppStore((s) => s.runSimulation);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
 
-  const canRun =
-    !!attacker.unitName &&
-    !!defender.unitName &&
-    attacker.selectedWeapons.length > 0;
+  const hasConfig = !!attacker.unitName && !!defender.unitName;
+
+  // Auto-open results when simulation completes
+  useEffect(() => {
+    if (simulation.results && detailsRef.current) {
+      detailsRef.current.open = true;
+    }
+  }, [simulation.results]);
 
   return (
-    <div className="panel results-panel">
-      <h2>Simulation</h2>
+    <details className="panel results-panel" ref={detailsRef}>
+      <summary>
+        <h2>Results</h2>
+      </summary>
 
-      <SimulationControls
-        iterations={simulation.iterations}
-        isRunning={simulation.isRunning}
-        canRun={canRun}
-        onIterationsChange={setIterations}
-        onRun={runSim}
-      />
+      <SimulationStatus isRunning={simulation.isRunning} />
 
-      {!canRun && !simulation.results && (
+      {!hasConfig && !simulation.results && (
         <div className="results-placeholder">
-          Select an attacker unit with weapons and a defender unit to run the simulation.
+          Select an attacker and defender unit to see results.
         </div>
       )}
 
@@ -226,16 +245,18 @@ function ResultsPanel() {
           <ResultsSummary results={simulation.results} />
           <ResultsChart
             stats={simulation.results.summary.damage}
+            iterations={simulation.results.iterations}
             label="Total Damage"
             color="#e74c3c"
           />
           <ResultsChart
             stats={simulation.results.summary.modelsKilled}
+            iterations={simulation.results.iterations}
             label="Models Killed"
             color="#3498db"
           />
         </>
       )}
-    </div>
+    </details>
   );
 }

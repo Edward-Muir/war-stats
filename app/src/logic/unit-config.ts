@@ -1,14 +1,8 @@
-import type { RawWeapon, UnitDatasheet } from "../types/data";
-import type { ConfiguredModel, SelectedWeapon } from "../types/config";
-import type { ResolvedWeaponGroup, DefenderProfile } from "../types/simulation";
-import {
-  parseDiceExpr,
-  parseRollTarget,
-  parseAP,
-  parseRange,
-  parseStrength,
-} from "../engine/dice";
-import { parseWeaponKeywords } from "../engine/keywords";
+import type { RawWeapon, UnitDatasheet } from '../types/data';
+import type { ConfiguredModel, SelectedWeapon } from '../types/config';
+import type { ResolvedWeaponGroup, DefenderProfile } from '../types/simulation';
+import { parseDiceExpr, parseRollTarget, parseAP, parseRange, parseStrength } from '../engine/dice';
+import { parseWeaponKeywords } from '../engine/keywords';
 
 /**
  * Get the list of weapons available on a unit based on current equipment.
@@ -16,7 +10,7 @@ import { parseWeaponKeywords } from "../engine/keywords";
  */
 export function getAvailableWeapons(
   datasheet: UnitDatasheet,
-  models: ConfiguredModel[],
+  models: ConfiguredModel[]
 ): { weapon: RawWeapon; maxFiringModels: number }[] {
   const weaponMap = new Map<string, { weapon: RawWeapon; maxFiringModels: number }>();
 
@@ -24,7 +18,7 @@ export function getAvailableWeapons(
     for (const equipName of model.equipment) {
       // Find matching weapon profile on the datasheet
       const weapon = datasheet.weapons.find(
-        (w) => w.name.toLowerCase() === equipName.toLowerCase(),
+        (w) => w.name.toLowerCase() === equipName.toLowerCase()
       );
       if (weapon) {
         const existing = weaponMap.get(weapon.name);
@@ -43,14 +37,10 @@ export function getAvailableWeapons(
     if (!weaponMap.has(weapon.name)) {
       // Check if this weapon is default equipment for any model def
       const totalModels = models.reduce((sum, m) => {
-        const def = datasheet.model_definitions.find(
-          (d) => d.name === m.definitionName,
-        );
+        const def = datasheet.model_definitions.find((d) => d.name === m.definitionName);
         if (
           def &&
-          def.default_equipment.some(
-            (e) => e.toLowerCase() === weapon.name.toLowerCase(),
-          )
+          def.default_equipment.some((e) => e.toLowerCase() === weapon.name.toLowerCase())
         ) {
           return sum + m.count;
         }
@@ -68,16 +58,12 @@ export function getAvailableWeapons(
 /**
  * Convert selected weapons into ResolvedWeaponGroups for the simulation engine.
  */
-export function resolveWeaponGroups(
-  selectedWeapons: SelectedWeapon[],
-): ResolvedWeaponGroup[] {
+export function resolveWeaponGroups(selectedWeapons: SelectedWeapon[]): ResolvedWeaponGroup[] {
   return selectedWeapons
     .filter((sw) => sw.firingModelCount > 0)
     .map((sw) => {
       const w = sw.weapon;
-      const skill = w.type === "ranged"
-        ? parseRollTarget(w.BS)
-        : parseRollTarget(w.WS);
+      const skill = w.type === 'ranged' ? parseRollTarget(w.BS) : parseRollTarget(w.WS);
 
       return {
         name: w.name,
@@ -90,7 +76,7 @@ export function resolveWeaponGroups(
         damage: parseDiceExpr(w.D),
         keywords: parseWeaponKeywords(w.keywords),
         firingModels: sw.firingModelCount,
-        targetInHalfRange: sw.targetInHalfRange,
+        targetInHalfRange: false, // Set globally by simulation slice from game state
       };
     });
 }
@@ -100,7 +86,7 @@ export function resolveWeaponGroups(
  */
 export function buildDefenderProfile(
   datasheet: UnitDatasheet,
-  modelCount: number,
+  modelCount: number
 ): DefenderProfile {
   const toughness = parseInt(datasheet.stats.T, 10);
   const save = parseRollTarget(datasheet.stats.Sv);

@@ -1,6 +1,6 @@
-import type { StateCreator } from "zustand";
-import type { SimulationResults } from "../../types/simulation";
-import type { AppStore } from "../store";
+import type { StateCreator } from 'zustand';
+import type { SimulationResults } from '../../types/simulation';
+import type { AppStore } from '../store';
 
 export interface SimulationSlice {
   simulation: {
@@ -9,17 +9,14 @@ export interface SimulationSlice {
     results: SimulationResults | null;
     worker: Worker | null;
   };
-  setIterations: (n: number) => void;
   runSimulation: () => void;
   clearResults: () => void;
 }
 
-export const createSimulationSlice: StateCreator<
-  AppStore,
-  [],
-  [],
-  SimulationSlice
-> = (set, get) => ({
+export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSlice> = (
+  set,
+  get
+) => ({
   simulation: {
     iterations: 10000,
     isRunning: false,
@@ -27,17 +24,19 @@ export const createSimulationSlice: StateCreator<
     worker: null,
   },
 
-  setIterations: (n) =>
-    set((state) => ({
-      simulation: { ...state.simulation, iterations: Math.max(100, Math.min(100000, n)) },
-    })),
-
   runSimulation: () => {
     const state = get();
-    if (state.simulation.isRunning) return;
+
+    // Terminate any in-flight worker
+    if (state.simulation.worker) {
+      state.simulation.worker.terminate();
+      set((s) => ({
+        simulation: { ...s.simulation, isRunning: false, worker: null },
+      }));
+    }
 
     // Build simulation input from current attacker/defender state
-    const input = buildSimulationInput(state);
+    const input = buildSimulationInput(get());
     if (!input) return;
 
     set((s) => ({
@@ -45,10 +44,9 @@ export const createSimulationSlice: StateCreator<
     }));
 
     // Create a web worker
-    const worker = new Worker(
-      new URL("../../engine/simulation.worker.ts", import.meta.url),
-      { type: "module" },
-    );
+    const worker = new Worker(new URL('../../engine/simulation.worker.ts', import.meta.url), {
+      type: 'module',
+    });
 
     worker.onmessage = (event: MessageEvent<SimulationResults>) => {
       set((s) => ({
@@ -63,7 +61,7 @@ export const createSimulationSlice: StateCreator<
     };
 
     worker.onerror = (err) => {
-      console.error("Simulation worker error:", err);
+      console.error('Simulation worker error:', err);
       set((s) => ({
         simulation: { ...s.simulation, isRunning: false, worker: null },
       }));
@@ -82,9 +80,9 @@ export const createSimulationSlice: StateCreator<
 
 // ─── Helper to assemble SimulationInput from store state ─────────
 
-import type { SimulationInput } from "../../types/simulation";
-import { resolveWeaponGroups, buildDefenderProfile } from "../../logic/unit-config";
-import { getTotalModels } from "../../logic/wargear";
+import type { SimulationInput } from '../../types/simulation';
+import { resolveWeaponGroups, buildDefenderProfile } from '../../logic/unit-config';
+import { getTotalModels } from '../../logic/wargear';
 
 function buildSimulationInput(state: AppStore): SimulationInput | null {
   const { attacker, defender, simulation } = state;
@@ -98,11 +96,14 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   if (!defenderData) return null;
 
   const defenderDatasheet = defenderData.datasheets.datasheets.find(
-    (d) => d.name === defender.unitName,
+    (d) => d.name === defender.unitName
   );
   if (!defenderDatasheet) return null;
 
-  const weaponGroups = resolveWeaponGroups(attacker.selectedWeapons);
+  const weaponGroups = resolveWeaponGroups(attacker.selectedWeapons).map((wg) => ({
+    ...wg,
+    targetInHalfRange: attacker.gameState.targetInHalfRange,
+  }));
   const defenderModelCount = getTotalModels(defender.models);
   const defenderProfile = buildDefenderProfile(defenderDatasheet, defenderModelCount);
 
@@ -119,4 +120,29 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
     },
     iterations: simulation.iterations,
   };
+}
+
+// ─── Auto-run subscription ──────────────────────────────────────
+
+import type { StoreApi } from 'zustand';
+
+export function initAutoRun(store: StoreApi<AppStore>) {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  store.subscribe((state, prev) => {
+    // Only react to attacker or defender changes
+    if (state.attacker === prev.attacker && state.defender === prev.defender) return;
+
+    const canRun =
+      !!state.attacker.unitName &&
+      !!state.defender.unitName &&
+      state.attacker.selectedWeapons.length > 0;
+
+    if (!canRun) return;
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      store.getState().runSimulation();
+    }, 300);
+  });
 }

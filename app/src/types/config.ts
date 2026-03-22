@@ -1,19 +1,18 @@
-import type { RawWeapon, Stratagem, UnitDatasheet } from "./data";
+import type { RawWeapon, Stratagem, UnitDatasheet } from './data';
 
 // ─── Unit Configuration ──────────────────────────────────────────
 
 /** A configured model within a unit after wargear choices. */
 export interface ConfiguredModel {
-  definitionName: string;   // Which ModelDefinition this is from
-  equipment: string[];      // Current weapon/equipment names after wargear swaps
-  count: number;            // How many of this exact configuration
+  definitionName: string; // Which ModelDefinition this is from
+  equipment: string[]; // Current weapon/equipment names after wargear swaps
+  count: number; // How many of this exact configuration
 }
 
 /** A weapon selected for firing, with how many models use it. */
 export interface SelectedWeapon {
   weapon: RawWeapon;
   firingModelCount: number;
-  targetInHalfRange: boolean;
 }
 
 /** A fully configured unit ready for simulation input assembly. */
@@ -28,29 +27,33 @@ export interface ConfiguredUnit {
 
 /** A single wargear option selection by the user. */
 export interface WargearChoice {
-  optionIndex: number;      // Index into datasheet.wargear_options
-  modelName: string;        // Which model definition this applies to
-  chosenEquipment: string;  // Which choice was selected from choices[]
+  optionIndex: number; // Index into datasheet.wargear_options
+  modelName: string; // Which model definition this applies to
+  chosenEquipment: string; // Which choice was selected from choices[]
 }
 
 // ─── Game State ──────────────────────────────────────────────────
 
 export interface AttackerGameState {
+  attackMode: 'ranged' | 'melee';
   remainedStationary: boolean;
   advanced: boolean;
   charged: boolean;
+  targetInHalfRange: boolean;
 }
 
 export interface DefenderGameState {
   inCover: boolean;
   benefitOfCover: boolean;
-  stealthAll: boolean;       // All models have STEALTH
+  stealthAll: boolean; // All models have STEALTH
 }
 
 export const DEFAULT_ATTACKER_STATE: AttackerGameState = {
+  attackMode: 'ranged',
   remainedStationary: false,
   advanced: false,
   charged: false,
+  targetInHalfRange: false,
 };
 
 export const DEFAULT_DEFENDER_STATE: DefenderGameState = {

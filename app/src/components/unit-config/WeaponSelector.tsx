@@ -1,6 +1,7 @@
-import type { RawWeapon } from "../../types/data";
-import type { SelectedWeapon } from "../../types/config";
-import { WeaponProfile } from "../shared/WeaponProfile";
+import type { KeyboardEvent } from 'react';
+import type { RawWeapon } from '../../types/data';
+import type { SelectedWeapon } from '../../types/config';
+import { WeaponProfile } from '../shared/WeaponProfile';
 
 interface AvailableWeapon {
   weapon: RawWeapon;
@@ -11,14 +12,15 @@ interface Props {
   available: AvailableWeapon[];
   selected: SelectedWeapon[];
   onChange: (selected: SelectedWeapon[]) => void;
+  attackMode: 'ranged' | 'melee';
 }
 
-export function WeaponSelector({ available, selected, onChange }: Props) {
-  const isSelected = (name: string) =>
-    selected.some((s) => s.weapon.name === name);
+export function WeaponSelector({ available, selected, onChange, attackMode }: Props) {
+  const filtered = available.filter(({ weapon }) => weapon.type === attackMode);
 
-  const getSelected = (name: string) =>
-    selected.find((s) => s.weapon.name === name);
+  const isSelected = (name: string) => selected.some((s) => s.weapon.name === name);
+
+  const getSelected = (name: string) => selected.find((s) => s.weapon.name === name);
 
   const toggleWeapon = (weapon: RawWeapon, maxModels: number) => {
     if (isSelected(weapon.name)) {
@@ -29,50 +31,44 @@ export function WeaponSelector({ available, selected, onChange }: Props) {
         {
           weapon,
           firingModelCount: maxModels,
-          targetInHalfRange: false,
         },
       ]);
     }
   };
 
   const setFiringModels = (name: string, count: number) => {
-    onChange(
-      selected.map((s) =>
-        s.weapon.name === name ? { ...s, firingModelCount: count } : s,
-      ),
-    );
+    onChange(selected.map((s) => (s.weapon.name === name ? { ...s, firingModelCount: count } : s)));
   };
 
-  const setHalfRange = (name: string, value: boolean) => {
-    onChange(
-      selected.map((s) =>
-        s.weapon.name === name ? { ...s, targetInHalfRange: value } : s,
-      ),
-    );
+  const handleKeyDown = (e: KeyboardEvent, weapon: RawWeapon, maxModels: number) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleWeapon(weapon, maxModels);
+    }
   };
 
   return (
     <div className="weapon-selector">
       <label>Weapons</label>
-      {available.map(({ weapon, maxFiringModels }) => {
+      {filtered.map(({ weapon, maxFiringModels }) => {
         const sel = getSelected(weapon.name);
         const active = !!sel;
 
         return (
           <div
             key={weapon.name}
-            className={`weapon-row ${active ? "active" : ""}`}
+            className={`weapon-row ${active ? 'active' : ''}`}
+            onClick={() => toggleWeapon(weapon, maxFiringModels)}
+            onKeyDown={(e) => handleKeyDown(e, weapon, maxFiringModels)}
+            role="switch"
+            aria-checked={active}
+            tabIndex={0}
           >
-            <label className="weapon-toggle">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={() => toggleWeapon(weapon, maxFiringModels)}
-              />
+            <div className="weapon-toggle">
               <WeaponProfile weapon={weapon} />
-            </label>
+            </div>
             {active && (
-              <div className="weapon-config">
+              <div className="weapon-config" onClick={(e) => e.stopPropagation()}>
                 <label>
                   Models firing:
                   <input
@@ -83,26 +79,11 @@ export function WeaponSelector({ available, selected, onChange }: Props) {
                     onChange={(e) =>
                       setFiringModels(
                         weapon.name,
-                        Math.max(
-                          1,
-                          Math.min(maxFiringModels, parseInt(e.target.value, 10) || 1),
-                        ),
+                        Math.max(1, Math.min(maxFiringModels, parseInt(e.target.value, 10) || 1))
                       )
                     }
                   />
                 </label>
-                {weapon.type === "ranged" && (
-                  <label className="half-range-toggle">
-                    <input
-                      type="checkbox"
-                      checked={sel!.targetInHalfRange}
-                      onChange={(e) =>
-                        setHalfRange(weapon.name, e.target.checked)
-                      }
-                    />
-                    Half range
-                  </label>
-                )}
               </div>
             )}
           </div>
