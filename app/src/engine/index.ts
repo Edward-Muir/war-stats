@@ -1,0 +1,10 @@
+export { parseDiceExpr, rollDiceExpr, rollD6, parseRollTarget, parseAP, parseRange, parseStrength } from "./dice";
+export { parseWeaponKeywords } from "./keywords";
+export { computeModifiers, getWoundThreshold } from "./modifiers";
+export { resolveAttack } from "./attack";
+export type { AttackResult } from "./attack";
+export { resolveWeaponGroup } from "./weapon-resolver";
+export type { WeaponGroupResult } from "./weapon-resolver";
+export { allocateDamage, buildModelPool } from "./allocation";
+export type { DefenderModel, AllocationResult } from "./allocation";
+export { runSimulation } from "./simulation";
