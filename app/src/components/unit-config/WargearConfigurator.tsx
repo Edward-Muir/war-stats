@@ -1,6 +1,6 @@
 import type { UnitDatasheet, WargearOption } from '../../types/data';
 import type { ConfiguredModel } from '../../types/config';
-import { getApplicableOptions, applyWargearChoice } from '../../logic/wargear';
+import { getApplicableOptions, applyWargearChoice, revertWargearChoice } from '../../logic/wargear';
 
 interface Props {
   datasheet: UnitDatasheet;
@@ -15,13 +15,19 @@ export function WargearConfigurator({ datasheet, models, onChange }: Props) {
     options: getApplicableOptions(datasheet, m.definitionName),
   }));
 
-  const handleChoice = (optionIndex: number, modelName: string, chosenEquipment: string) => {
-    const updated = applyWargearChoice(models, datasheet, {
-      optionIndex,
-      modelName,
-      chosenEquipment,
-    });
-    onChange(updated);
+  const handleChoice = (optionIndex: number, modelName: string, chosenEquipment: string | null) => {
+    if (chosenEquipment === null) {
+      // Revert to default
+      const updated = revertWargearChoice(models, datasheet, optionIndex, modelName);
+      onChange(updated);
+    } else {
+      const updated = applyWargearChoice(models, datasheet, {
+        optionIndex,
+        modelName,
+        chosenEquipment,
+      });
+      onChange(updated);
+    }
   };
 
   return (
@@ -53,7 +59,7 @@ function WargearOptionRow({
   optionIndex: number;
   modelName: string;
   currentEquipment: string[];
-  onChoice: (idx: number, model: string, choice: string) => void;
+  onChoice: (idx: number, model: string, choice: string | null) => void;
 }) {
   // Figure out current selection: check if any choice is in current equipment
   const currentChoice = option.choices.find((c) =>
@@ -68,7 +74,7 @@ function WargearOptionRow({
       <select
         value={currentChoice ?? ''}
         onChange={(e) => {
-          if (e.target.value) onChoice(optionIndex, modelName, e.target.value);
+          onChoice(optionIndex, modelName, e.target.value || null);
         }}
       >
         <option value="">

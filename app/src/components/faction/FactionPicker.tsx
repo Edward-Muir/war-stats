@@ -4,13 +4,11 @@ import { SUPER_FACTIONS } from '../../data/super-factions';
 import type { FactionIndexEntry } from '../../types/data';
 
 interface Props {
-  value: string | null;
-  onChange: (slug: string) => void;
-  onClear?: () => void;
+  onChange: (slug: string, chapterKeyword?: string) => void;
   label: string;
 }
 
-export function FactionPicker({ value, onChange, onClear, label }: Props) {
+export function FactionPicker({ onChange, label }: Props) {
   const { index, loading } = useFactionIndex();
   const [activeSuperFaction, setActiveSuperFaction] = useState<string | null>(null);
 
@@ -21,26 +19,6 @@ export function FactionPicker({ value, onChange, onClear, label }: Props) {
     index.factions.map((f) => [f.faction.toLowerCase(), f])
   );
 
-  // If a faction is already selected, show it as a changeable button
-  if (value) {
-    const selected = index.factions.find((f) => f.slug === value);
-    return (
-      <div className="picker">
-        <label>{label}</label>
-        <button
-          className="faction-selected-btn"
-          onClick={() => {
-            onClear?.();
-            setActiveSuperFaction(null);
-          }}
-        >
-          {selected?.faction ?? value}
-          <span className="faction-change-hint">Change</span>
-        </button>
-      </div>
-    );
-  }
-
   // Stage 2: show factions within the selected super-faction
   if (activeSuperFaction) {
     const superFaction = SUPER_FACTIONS.find((sf) => sf.id === activeSuperFaction);
@@ -49,6 +27,8 @@ export function FactionPicker({ value, onChange, onClear, label }: Props) {
     const matchingFactions = superFaction.factions
       .map((name) => factionLookup.get(name.toLowerCase()))
       .filter((f): f is FactionIndexEntry => f != null);
+
+    const chapters = superFaction.chapters ?? [];
 
     return (
       <div className="picker">
@@ -62,6 +42,16 @@ export function FactionPicker({ value, onChange, onClear, label }: Props) {
             <span className="faction-count">{f.datasheet_count} units</span>
           </button>
         ))}
+        {chapters.map((ch) => (
+          <button
+            key={ch.name}
+            className="faction-btn"
+            onClick={() => onChange(ch.factionSlug, ch.chapterKeyword)}
+          >
+            {ch.name}
+            {ch.unitCount != null && <span className="faction-count">{ch.unitCount} unique</span>}
+          </button>
+        ))}
       </div>
     );
   }
@@ -71,7 +61,10 @@ export function FactionPicker({ value, onChange, onClear, label }: Props) {
     <div className="picker">
       <label>{label}</label>
       {SUPER_FACTIONS.map((sf) => {
-        const count = sf.factions.filter((name) => factionLookup.has(name.toLowerCase())).length;
+        const factionCount = sf.factions.filter((name) =>
+          factionLookup.has(name.toLowerCase())
+        ).length;
+        const count = factionCount + (sf.chapters?.length ?? 0);
         return (
           <button
             key={sf.id}

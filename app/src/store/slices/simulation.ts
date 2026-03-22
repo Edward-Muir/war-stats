@@ -100,7 +100,13 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   );
   if (!defenderDatasheet) return null;
 
-  const weaponGroups = resolveWeaponGroups(attacker.selectedWeapons).map((wg) => ({
+  // Only simulate weapons matching the current attack mode (ranged or melee)
+  const modeWeapons = attacker.selectedWeapons.filter(
+    (sw) => sw.weapon.type === attacker.gameState.attackMode
+  );
+  if (modeWeapons.length === 0) return null;
+
+  const weaponGroups = resolveWeaponGroups(modeWeapons).map((wg) => ({
     ...wg,
     targetInHalfRange: attacker.gameState.targetInHalfRange,
   }));

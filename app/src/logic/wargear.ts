@@ -1,5 +1,5 @@
-import type { UnitDatasheet, WargearOption } from "../types/data";
-import type { ConfiguredModel, WargearChoice } from "../types/config";
+import type { UnitDatasheet, WargearOption } from '../types/data';
+import type { ConfiguredModel, WargearChoice } from '../types/config';
 
 /**
  * Build the initial model configuration from a datasheet's model_definitions.
@@ -27,16 +27,14 @@ export function setModelCount(
   models: ConfiguredModel[],
   datasheet: UnitDatasheet,
   definitionName: string,
-  count: number,
+  count: number
 ): ConfiguredModel[] {
   const def = datasheet.model_definitions.find((d) => d.name === definitionName);
   if (!def) return models;
 
   const clamped = Math.max(def.min_models, Math.min(def.max_models, count));
 
-  return models.map((m) =>
-    m.definitionName === definitionName ? { ...m, count: clamped } : m,
-  );
+  return models.map((m) => (m.definitionName === definitionName ? { ...m, count: clamped } : m));
 }
 
 /**
@@ -46,20 +44,18 @@ export function setModelCount(
  */
 export function getApplicableOptions(
   datasheet: UnitDatasheet,
-  definitionName: string,
+  definitionName: string
 ): { option: WargearOption; index: number }[] {
   return datasheet.wargear_options
     .map((opt, index) => ({ option: opt, index }))
     .filter(({ option }) => {
       switch (option.scope) {
-        case "named_model":
-          return (
-            option.model_name?.toLowerCase() === definitionName.toLowerCase()
-          );
-        case "all_models":
-        case "this_model":
-        case "specific_count":
-        case "per_n_models":
+        case 'named_model':
+          return option.model_name?.toLowerCase() === definitionName.toLowerCase();
+        case 'all_models':
+        case 'this_model':
+        case 'specific_count':
+        case 'per_n_models':
           return true;
         default:
           return true;
@@ -74,7 +70,7 @@ export function getApplicableOptions(
 export function applyWargearChoice(
   models: ConfiguredModel[],
   datasheet: UnitDatasheet,
-  choice: WargearChoice,
+  choice: WargearChoice
 ): ConfiguredModel[] {
   const option = datasheet.wargear_options[choice.optionIndex];
   if (!option) return models;
@@ -84,18 +80,53 @@ export function applyWargearChoice(
 
     const equipment = [...m.equipment];
 
-    if (option.type === "replace") {
+    if (option.type === 'replace') {
       // Remove replaced items and add the chosen one
       for (const replaced of option.replaces) {
-        const idx = equipment.findIndex(
-          (e) => e.toLowerCase() === replaced.toLowerCase(),
-        );
+        const idx = equipment.findIndex((e) => e.toLowerCase() === replaced.toLowerCase());
         if (idx >= 0) equipment.splice(idx, 1);
       }
       equipment.push(choice.chosenEquipment);
     } else {
       // "add" — just add the new equipment
       equipment.push(choice.chosenEquipment);
+    }
+
+    return { ...m, equipment };
+  });
+}
+
+/**
+ * Revert a wargear option back to defaults for a specific model.
+ * Removes any chosen equipment from this option and restores the replaced items.
+ */
+export function revertWargearChoice(
+  models: ConfiguredModel[],
+  datasheet: UnitDatasheet,
+  optionIndex: number,
+  modelName: string
+): ConfiguredModel[] {
+  const option = datasheet.wargear_options[optionIndex];
+  if (!option) return models;
+
+  return models.map((m) => {
+    if (m.definitionName !== modelName) return m;
+
+    const equipment = [...m.equipment];
+
+    // Remove any of the option's choices from equipment
+    for (const choice of option.choices) {
+      const idx = equipment.findIndex((e) => e.toLowerCase() === choice.toLowerCase());
+      if (idx >= 0) equipment.splice(idx, 1);
+    }
+
+    if (option.type === 'replace') {
+      // Restore the default replaced items (if not already present)
+      for (const replaced of option.replaces) {
+        if (!equipment.some((e) => e.toLowerCase() === replaced.toLowerCase())) {
+          equipment.push(replaced);
+        }
+      }
     }
 
     return { ...m, equipment };

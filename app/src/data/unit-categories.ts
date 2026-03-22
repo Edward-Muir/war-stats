@@ -56,6 +56,11 @@ export function groupUnitsByCategory(
     }
   }
 
+  // Sort units alphabetically within each group
+  for (const list of groups.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   // Return in priority order, then OTHER at the end
   const result: { category: string; displayName: string; units: UnitDatasheet[] }[] = [];
   for (const cat of CATEGORY_PRIORITY) {

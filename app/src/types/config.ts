@@ -46,6 +46,7 @@ export interface DefenderGameState {
   inCover: boolean;
   benefitOfCover: boolean;
   stealthAll: boolean; // All models have STEALTH
+  closestTarget: boolean; // Defender is the closest eligible target
 }
 
 export const DEFAULT_ATTACKER_STATE: AttackerGameState = {
@@ -60,6 +61,7 @@ export const DEFAULT_DEFENDER_STATE: DefenderGameState = {
   inCover: false,
   benefitOfCover: false,
   stealthAll: false,
+  closestTarget: true,
 };
 
 // ─── Active Stratagems ───────────────────────────────────────────

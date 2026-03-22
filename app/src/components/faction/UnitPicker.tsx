@@ -10,16 +10,9 @@ interface Props {
 }
 
 export function UnitPicker({ units, value, onChange, onClear }: Props) {
-  const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const categories = useMemo(() => groupUnitsByCategory(units), [units]);
-
-  const searchResults = useMemo(() => {
-    if (!search) return null;
-    const lower = search.toLowerCase();
-    return units.filter((u) => u.name.toLowerCase().includes(lower));
-  }, [units, search]);
 
   // Selected unit: show name with Change button
   if (value) {
@@ -32,36 +25,11 @@ export function UnitPicker({ units, value, onChange, onClear }: Props) {
           onClick={() => {
             onClear?.();
             setActiveCategory(null);
-            setSearch('');
           }}
         >
           {selected?.name ?? value}
           <span className="faction-change-hint">Change</span>
         </button>
-      </div>
-    );
-  }
-
-  // Search active: show flat results bypassing categories
-  if (searchResults) {
-    return (
-      <div className="picker">
-        <label>Unit</label>
-        <input
-          type="text"
-          placeholder="Search units..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search-input"
-        />
-        {searchResults.map((u) => (
-          <button key={u.name} className="faction-btn" onClick={() => onChange(u.name)}>
-            {u.name}
-          </button>
-        ))}
-        {searchResults.length === 0 && (
-          <div className="picker-loading">No units match "{search}"</div>
-        )}
       </div>
     );
   }
@@ -77,13 +45,6 @@ export function UnitPicker({ units, value, onChange, onClear }: Props) {
         <button className="faction-back-btn" onClick={() => setActiveCategory(null)}>
           ◂ {group.displayName}
         </button>
-        <input
-          type="text"
-          placeholder="Search units..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search-input"
-        />
         {group.units.map((u) => (
           <button key={u.name} className="faction-btn" onClick={() => onChange(u.name)}>
             {u.name}
@@ -97,13 +58,6 @@ export function UnitPicker({ units, value, onChange, onClear }: Props) {
   return (
     <div className="picker">
       <label>Unit</label>
-      <input
-        type="text"
-        placeholder="Search units..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="search-input"
-      />
       {categories.map((group) => (
         <button
           key={group.category}
