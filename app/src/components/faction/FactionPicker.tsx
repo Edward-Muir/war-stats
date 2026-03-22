@@ -1,30 +1,88 @@
-import { useFactionIndex } from "../../data/hooks";
+import { useState } from 'react';
+import { useFactionIndex } from '../../data/hooks';
+import { SUPER_FACTIONS } from '../../data/super-factions';
+import type { FactionIndexEntry } from '../../types/data';
 
 interface Props {
   value: string | null;
   onChange: (slug: string) => void;
+  onClear?: () => void;
   label: string;
 }
 
-export function FactionPicker({ value, onChange, label }: Props) {
+export function FactionPicker({ value, onChange, onClear, label }: Props) {
   const { index, loading } = useFactionIndex();
+  const [activeSuperFaction, setActiveSuperFaction] = useState<string | null>(null);
 
   if (loading || !index) return <div className="picker-loading">Loading factions...</div>;
 
+  // Build a lookup from faction name (lowercase) to index entry
+  const factionLookup = new Map<string, FactionIndexEntry>(
+    index.factions.map((f) => [f.faction.toLowerCase(), f])
+  );
+
+  // If a faction is already selected, show it as a changeable button
+  if (value) {
+    const selected = index.factions.find((f) => f.slug === value);
+    return (
+      <div className="picker">
+        <label>{label}</label>
+        <button
+          className="faction-selected-btn"
+          onClick={() => {
+            onClear?.();
+            setActiveSuperFaction(null);
+          }}
+        >
+          {selected?.faction ?? value}
+          <span className="faction-change-hint">Change</span>
+        </button>
+      </div>
+    );
+  }
+
+  // Stage 2: show factions within the selected super-faction
+  if (activeSuperFaction) {
+    const superFaction = SUPER_FACTIONS.find((sf) => sf.id === activeSuperFaction);
+    if (!superFaction) return null;
+
+    const matchingFactions = superFaction.factions
+      .map((name) => factionLookup.get(name.toLowerCase()))
+      .filter((f): f is FactionIndexEntry => f != null);
+
+    return (
+      <div className="picker">
+        <label>{label}</label>
+        <button className="faction-back-btn" onClick={() => setActiveSuperFaction(null)}>
+          ◂ {superFaction.name}
+        </button>
+        {matchingFactions.map((f) => (
+          <button key={f.slug} className="faction-btn" onClick={() => onChange(f.slug)}>
+            {f.faction}
+            <span className="faction-count">{f.datasheet_count} units</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // Stage 1: show super-factions
   return (
     <div className="picker">
       <label>{label}</label>
-      <select
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">-- Select Faction --</option>
-        {index.factions.map((f) => (
-          <option key={f.slug} value={f.slug}>
-            {f.faction} ({f.datasheet_count} units)
-          </option>
-        ))}
-      </select>
+      {SUPER_FACTIONS.map((sf) => {
+        const count = sf.factions.filter((name) => factionLookup.has(name.toLowerCase())).length;
+        return (
+          <button
+            key={sf.id}
+            className="faction-group-btn"
+            onClick={() => setActiveSuperFaction(sf.id)}
+          >
+            {sf.name}
+            <span className="faction-count">{count}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

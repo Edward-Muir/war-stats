@@ -216,6 +216,88 @@
   padding: 8px 0;
 }
 
+/* ─── Faction Picker (two-stage) ─────────────────────────────── */
+
+.faction-group-btn,
+.faction-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  margin: 4px 0;
+  min-height: 44px;
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  color: #e4e4e4;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s;
+}
+
+.faction-group-btn:active,
+.faction-btn:active {
+  border-color: #666;
+}
+
+.faction-group-btn::after {
+  content: '▸';
+  margin-left: auto;
+  color: #666;
+}
+
+.faction-count {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.faction-group-btn .faction-count {
+  margin-right: 8px;
+}
+
+.faction-back-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #a3a3a3;
+  padding: 8px 0;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-family: inherit;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.faction-selected-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  min-height: 44px;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #e4e4e4;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.faction-change-hint {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  color: #a3a3a3;
+}
+
 /* ─── Stat Line ───────────────────────────────────────────────── */
 
 .stat-line {
@@ -291,6 +373,57 @@
 .unit-configurator h3 {
   margin: 0 0 8px;
   font-size: 1rem;
+}
+
+/* ─── Config Sections (collapsible sub-sections) ─────────────── */
+
+.config-section {
+  margin: 8px 0;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  background: #1a1a1a;
+}
+
+.config-section > summary {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  font-size: 0.875rem;
+  color: #a3a3a3;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.config-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-section > summary::after {
+  content: '▸';
+  margin-left: auto;
+  font-size: 0.875rem;
+  color: #666;
+  transition: transform 0.15s;
+}
+
+.config-section[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.config-section-content {
+  padding: 0 12px 12px;
+}
+
+.config-badge {
+  font-size: 0.75rem;
+  background: rgba(243, 156, 18, 0.15);
+  color: #f39c12;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
 }
 
 /* ─── Model Count ─────────────────────────────────────────────── */

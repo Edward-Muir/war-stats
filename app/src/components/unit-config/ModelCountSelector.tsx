@@ -1,5 +1,5 @@
-import type { ModelDefinition } from "../../types/data";
-import type { ConfiguredModel } from "../../types/config";
+import type { ModelDefinition } from '../../types/data';
+import type { ConfiguredModel } from '../../types/config';
 
 interface Props {
   definitions: ModelDefinition[];
@@ -13,14 +13,13 @@ export function ModelCountSelector({ definitions, models, onChange }: Props) {
     if (!def) return;
     const clamped = Math.max(def.min_models, Math.min(def.max_models, count));
     const updated = models.map((m) =>
-      m.definitionName === defName ? { ...m, count: clamped } : m,
+      m.definitionName === defName ? { ...m, count: clamped } : m
     );
     onChange(updated);
   };
 
   return (
     <div className="model-count-selector">
-      <label>Models</label>
       {models.map((m) => {
         const def = definitions.find((d) => d.name === m.definitionName);
         if (!def) return null;

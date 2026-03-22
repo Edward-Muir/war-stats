@@ -82,6 +82,23 @@ export function resolveWeaponGroups(selectedWeapons: SelectedWeapon[]): Resolved
 }
 
 /**
+ * Check if any model's equipment differs from its default.
+ */
+export function isWargearCustomized(datasheet: UnitDatasheet, models: ConfiguredModel[]): boolean {
+  return models.some((model) => {
+    const def = datasheet.model_definitions.find((d) => d.name === model.definitionName);
+    if (!def) return false;
+    const defaultSet = new Set(def.default_equipment.map((e) => e.toLowerCase()));
+    const currentSet = new Set(model.equipment.map((e) => e.toLowerCase()));
+    if (defaultSet.size !== currentSet.size) return true;
+    for (const e of defaultSet) {
+      if (!currentSet.has(e)) return true;
+    }
+    return false;
+  });
+}
+
+/**
  * Build a DefenderProfile from a datasheet and model count.
  */
 export function buildDefenderProfile(

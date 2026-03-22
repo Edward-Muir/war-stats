@@ -81,6 +81,7 @@ function AttackerPanel() {
           setFaction(slug);
           loadFaction(slug);
         }}
+        onClear={() => setFaction('')}
       />
 
       {data && (
@@ -96,6 +97,7 @@ function AttackerPanel() {
           units={data.datasheets.datasheets}
           value={attacker.unitName}
           onChange={setUnit}
+          onClear={() => setUnit('')}
         />
       )}
 
@@ -152,6 +154,7 @@ function DefenderPanel() {
           setFaction(slug);
           loadFaction(slug);
         }}
+        onClear={() => setFaction('')}
       />
 
       {data && (
@@ -167,6 +170,7 @@ function DefenderPanel() {
           units={data.datasheets.datasheets}
           value={defender.unitName}
           onChange={setUnit}
+          onClear={() => setUnit('')}
         />
       )}
 
