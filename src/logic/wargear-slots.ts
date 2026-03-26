@@ -20,7 +20,7 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
   const slots: WargearSlot[] = [];
 
   for (const def of datasheet.model_definitions) {
-    const applicableOptions = getApplicableOptionIndices(datasheet, def.name);
+    const applicableOptions = getApplicableOptionIndices(datasheet, def);
 
     // Group options by their replaces key to find independent vs exclusive slots
     const groups = new Map<string, { optionIndices: number[]; replaces: string[] }>();
@@ -34,8 +34,11 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
         .map((r) => r.toLowerCase())
         .sort()
         .join('+') || `add_${optIdx}`;
-      // Include scope in key so named_model and all_models don't merge
-      const replacesKey = `${replacesBase}::${option.scope}`;
+      // Include scope in key so named_model and all_models don't merge.
+      // For per_n_models, each option is an independent quota — don't merge.
+      const replacesKey = option.scope === 'per_n_models'
+        ? `${replacesBase}::per_n_models::${optIdx}`
+        : `${replacesBase}::${option.scope}`;
 
       const existing = groups.get(replacesKey);
       if (existing) {
@@ -74,6 +77,12 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
       const scopeKind = scope.kind;
       const slotId = `${def.name}::${replacesKey}::${scopeKind}`;
 
+      // Slots replacing the same equipment on the same definition share a budget group
+      const budgetGroup =
+        (firstOption.scope === 'per_n_models' || firstOption.scope === 'specific_count')
+          ? `${def.name}::${group.replaces.sort().join('+')}`
+          : undefined;
+
       slots.push({
         slotId,
         definitionName: def.name,
@@ -82,6 +91,7 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
         options: slotOptions,
         scope,
         raw: firstOption.raw,
+        budgetGroup,
       });
     }
   }
@@ -94,19 +104,25 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
  */
 function getApplicableOptionIndices(
   datasheet: UnitDatasheet,
-  definitionName: string
+  def: ModelDefinition
 ): number[] {
+  const isFixedSingleModel = def.min_models === def.max_models && def.max_models === 1;
+
   return datasheet.wargear_options
     .map((_, index) => index)
     .filter((index) => {
       const opt = datasheet.wargear_options[index];
       switch (opt.scope) {
         case 'named_model':
-          return opt.model_name?.toLowerCase() === definitionName.toLowerCase();
+          return opt.model_name?.toLowerCase() === def.name.toLowerCase();
+        case 'per_n_models':
+          // per_n_models options apply to the multi-model pool, not single-model named characters
+          return !isFixedSingleModel;
+        case 'specific_count':
+          // specific_count options apply to the multi-model pool, not single-model named characters
+          return !isFixedSingleModel;
         case 'all_models':
         case 'this_model':
-        case 'specific_count':
-        case 'per_n_models':
           return true;
         default:
           return true;
@@ -408,12 +424,33 @@ export function setVariableCount(
   );
   if (!base) return models;
 
-  const totalForDef = models
-    .filter((m) => m.definitionName === target.definitionName)
-    .reduce((sum, m) => sum + m.count, 0);
+  // Budget group constraint: total across sibling slots can't exceed def model count
+  let maxFromBudget = Infinity;
+  if (slot?.budgetGroup) {
+    const siblingSlotIds = new Set(
+      slots
+        .filter((s) => s.budgetGroup === slot.budgetGroup && s.slotId !== slot.slotId)
+        .map((s) => s.slotId)
+    );
+    const siblingAllocated = models
+      .filter(
+        (m) =>
+          m.definitionName === target.definitionName &&
+          !m.isBase &&
+          m.groupId !== groupId &&
+          m.slotSelections.some((s) => siblingSlotIds.has(s.slotId))
+      )
+      .reduce((sum, m) => sum + m.count, 0);
 
-  // Clamp: can't exceed slot max or take more than base has
-  const clamped = Math.max(0, Math.min(newCount, maxForSlot, totalForDef));
+    const totalForDef = models
+      .filter((m) => m.definitionName === target.definitionName)
+      .reduce((sum, m) => sum + m.count, 0);
+    maxFromBudget = totalForDef - siblingAllocated;
+  }
+
+  // Clamp: can't exceed slot max, budget max, or take more than base has
+  const available = base.count + target.count;
+  const clamped = Math.max(0, Math.min(newCount, maxForSlot, available, maxFromBudget));
   const delta = clamped - target.count;
   if (delta === 0) return models;
 

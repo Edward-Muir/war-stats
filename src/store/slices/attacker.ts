@@ -38,6 +38,7 @@ export interface AttackerSlice {
   setAttackerUnit: (name: string) => void;
   selectSlotOption: (slotId: string, optionKey: string | null) => void;
   setVariableSlotCount: (groupId: string, count: number) => void;
+  setVariableSlotAllocation: (slotId: string, optionKey: string, count: number) => void;
   setDefinitionCount: (definitionName: string, count: number) => void;
   setWeaponFiringCount: (groupId: string, weaponName: string, count: number) => void;
   setAttackerGameState: (state: Partial<AttackerGameState>) => void;
@@ -160,6 +161,44 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         if (!group) return fc;
         return { ...fc, firingModelCount: Math.min(fc.firingModelCount, group.count) };
       });
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
+    }),
+
+  setVariableSlotAllocation: (slotId, optionKey, count) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models: oldModels, gameState } = state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
+
+      const slot = slots.find((s) => s.slotId === slotId);
+      if (!slot) return state;
+
+      let models = oldModels;
+      const groupId = `${slot.definitionName}__${slotId}__${optionKey}`;
+
+      if (count === 0) {
+        // Remove variant group for this slot
+        models = applySlotSelection(models, slots, datasheet, slotId, null);
+      } else {
+        // Ensure variant group exists
+        const existingVariant = models.find((m) => m.groupId === groupId);
+        if (!existingVariant) {
+          models = applySlotSelection(models, slots, datasheet, slotId, optionKey);
+        }
+        // Set count (redistributes from base group)
+        models = setVariableCount(models, groupId, count, datasheet, slots);
+      }
+
+      const firingConfig = buildDefaultFiringConfig(models, slots, datasheet);
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,

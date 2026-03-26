@@ -1,3 +1,5 @@
+import { Toggle } from '@/components/ui/toggle';
+import { cn } from '@/lib/utils';
 import type { Stratagem } from '../../types/data';
 import type { ActiveStratagem } from '../../types/config';
 import { classifyCombatType, resolveStratagemEffect } from '../../logic/stratagem-effects';
@@ -17,7 +19,6 @@ export function StratagemChips({
   onToggle,
   attackMode,
 }: Props) {
-  // Filter by combat type relevance
   const filtered = stratagems.filter((s) => {
     const combatType = classifyCombatType(s.when, s.effect);
     return combatType === 'any' || combatType === attackMode;
@@ -25,23 +26,26 @@ export function StratagemChips({
 
   if (filtered.length === 0) return null;
 
-  const sideClass = side === 'attacker' ? 'chip--attacker' : 'chip--defender';
-
   return (
-    <div className="chip-row">
+    <div className="flex flex-wrap gap-2 mt-2">
       {filtered.map((strat) => {
         const isActive = activeStratagems.some((a) => a.stratagem.name === strat.name);
         const { isParsed } = resolveStratagemEffect(strat);
         return (
-          <button
+          <Toggle
             key={strat.name}
-            type="button"
-            className={`chip ${sideClass} ${isActive ? 'chip--active' : ''} ${!isParsed ? 'chip--unparsed' : ''}`}
-            onClick={() => onToggle(strat)}
+            pressed={isActive}
+            onPressedChange={() => onToggle(strat)}
             title={strat.effect}
+            className={cn(
+              'h-9 rounded-full border border-border px-3.5 text-xs font-semibold data-[state=off]:bg-transparent',
+              isActive && side === 'attacker' && 'border-attacker bg-attacker/15 text-attacker',
+              isActive && side === 'defender' && 'border-defender bg-defender/15 text-defender',
+              !isParsed && 'opacity-50 border-dashed',
+            )}
           >
             {strat.name} {strat.cp_cost}CP
-          </button>
+          </Toggle>
         );
       })}
     </div>

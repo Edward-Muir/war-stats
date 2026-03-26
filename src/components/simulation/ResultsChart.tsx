@@ -17,14 +17,12 @@ interface Props {
   color?: string;
 }
 
-export function ResultsChart({ stats, iterations, label, color = '#e74c3c' }: Props) {
-  // Convert counts to percentages and compute cumulative "X or more"
+export function ResultsChart({ stats, iterations, label, color = 'var(--attacker)' }: Props) {
   const raw = stats.histogram.map((h) => ({
     value: h.bucket,
     pct: (h.count / iterations) * 100,
   }));
 
-  // Cumulative from right: chance of getting this value or more
   const data = raw.map((item, i) => {
     const cumulativePct = raw.slice(i).reduce((sum, r) => sum + r.pct, 0);
     return {
@@ -35,15 +33,20 @@ export function ResultsChart({ stats, iterations, label, color = '#e74c3c' }: Pr
   });
 
   return (
-    <div className="results-chart">
-      <h4>{label}</h4>
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold text-muted-foreground">{label}</h4>
       <ResponsiveContainer width="100%" height={250}>
         <ComposedChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-          <XAxis dataKey="value" stroke="#999" />
-          <YAxis stroke="#999" tickFormatter={(v) => `${v}%`} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis dataKey="value" stroke="var(--muted-foreground)" fontSize={12} />
+          <YAxis stroke="var(--muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} />
           <Tooltip
-            contentStyle={{ backgroundColor: '#1E1E1E', border: '1px solid #444' }}
+            contentStyle={{
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '0.5rem',
+              color: 'var(--foreground)',
+            }}
             formatter={(value, name) => {
               if (name === 'pct') return [`${value}%`, 'Chance'];
               return [`${value}%`, 'This or better'];
@@ -54,7 +57,7 @@ export function ResultsChart({ stats, iterations, label, color = '#e74c3c' }: Pr
           <Line
             dataKey="cumulativePct"
             type="monotone"
-            stroke="#2ecc71"
+            stroke="var(--success)"
             strokeWidth={2}
             dot={false}
           />

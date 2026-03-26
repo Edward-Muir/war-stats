@@ -15,19 +15,21 @@ export function StatsOverlay({ isOpen, onClose }: Props) {
 
   return (
     <Overlay isOpen={isOpen} onClose={onClose} title="Detailed Results">
-      <ResultsSummary results={results} />
-      <ResultsChart
-        stats={results.summary.damage}
-        iterations={results.iterations}
-        label="Total Damage"
-        color="#e74c3c"
-      />
-      <ResultsChart
-        stats={results.summary.modelsKilled}
-        iterations={results.iterations}
-        label="Models Killed"
-        color="#3498db"
-      />
+      <div className="space-y-6">
+        <ResultsSummary results={results} />
+        <ResultsChart
+          stats={results.summary.damage}
+          iterations={results.iterations}
+          label="Total Damage"
+          color="var(--attacker)"
+        />
+        <ResultsChart
+          stats={results.summary.modelsKilled}
+          iterations={results.iterations}
+          label="Models Killed"
+          color="var(--defender)"
+        />
+      </div>
     </Overlay>
   );
 }

@@ -1,17 +1,19 @@
 import { useState } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+import { ChevronDown } from 'lucide-react';
 import type { RawWeapon } from '../../types/data';
+import { KeywordBadge } from '../shared/KeywordBadge';
 import { CountStepper } from './CountStepper';
 
 interface Props {
   weapon: RawWeapon;
-  /** Count mode: show +/- stepper for firing count */
   firingCount?: number;
   maxFiringCount?: number;
   onFiringCountChange?: (count: number) => void;
-  /** Checkbox mode: show enable/disable checkbox */
   enabled?: boolean;
   onToggle?: () => void;
-  /** Read-only mode: no interaction */
   readOnly?: boolean;
 }
 
@@ -31,79 +33,54 @@ export function WeaponRow({
   const showKeywords = weapon.keywords.length > 0;
 
   return (
-    <div className={`weapon-row-v2 ${expanded ? 'expanded' : ''}`}>
-      <div
-        className="weapon-row-header"
-        onClick={() => setExpanded(!expanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }
-        }}
-      >
-        <span className="weapon-row-name">{weapon.name}</span>
+    <Collapsible open={expanded} onOpenChange={setExpanded}>
+      <div className="rounded-md border border-border overflow-hidden">
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 min-h-10 text-left">
+          <span className="flex-1 text-sm text-foreground truncate">{weapon.name}</span>
 
-        {hasCheckbox && !readOnly && (
-          <label
-            className="weapon-checkbox"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={onToggle}
-            />
-          </label>
-        )}
-
-        {hasStepper && !readOnly && (
-          <CountStepper
-            value={firingCount}
-            min={0}
-            max={maxFiringCount}
-            onChange={onFiringCountChange}
-          />
-        )}
-
-        <button
-          type="button"
-          className={`chevron-btn ${expanded ? 'chevron-open' : ''}`}
-          tabIndex={-1}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
-        >
-          &#x25BE;
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="weapon-row-details">
-          <div className="weapon-stat-line">
-            <span>Range: {weapon.range}</span>
-            {showKeywords && (
-              <span>Keywords: {weapon.keywords.join(', ')}</span>
-            )}
-          </div>
-          <div className="weapon-stat-line">
-            <span>A: {weapon.A}</span>
-            <span>{weapon.type === 'ranged' ? `BS: ${weapon.BS}` : `WS: ${weapon.WS}`}</span>
-            <span>S: {weapon.S}</span>
-            <span>AP: {weapon.AP}</span>
-            <span>D: {weapon.D}</span>
-          </div>
-          {showKeywords && (
-            <div className="weapon-keyword-badges">
-              {weapon.keywords.map((kw) => (
-                <span key={kw} className="keyword-badge keyword-weapon">
-                  {kw}
-                </span>
-              ))}
+          {hasCheckbox && !readOnly && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={enabled} onCheckedChange={onToggle} />
             </div>
           )}
-        </div>
-      )}
-    </div>
+
+          {hasStepper && !readOnly && (
+            <CountStepper
+              value={firingCount}
+              min={0}
+              max={maxFiringCount}
+              onChange={onFiringCountChange}
+            />
+          )}
+
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+              expanded && 'rotate-180',
+            )}
+          />
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="border-t border-border bg-muted/50 px-3 py-2 space-y-1.5">
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              <span>Range: {weapon.range}</span>
+              <span>A: {weapon.A}</span>
+              <span>{weapon.type === 'ranged' ? `BS: ${weapon.BS}` : `WS: ${weapon.WS}`}</span>
+              <span>S: {weapon.S}</span>
+              <span>AP: {weapon.AP}</span>
+              <span>D: {weapon.D}</span>
+            </div>
+            {showKeywords && (
+              <div className="flex flex-wrap gap-1">
+                {weapon.keywords.map((kw) => (
+                  <KeywordBadge key={kw} keyword={kw} variant="weapon" />
+                ))}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }

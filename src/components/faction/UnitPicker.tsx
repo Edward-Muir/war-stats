@@ -1,4 +1,7 @@
 import { useState, useMemo } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { UnitDatasheet } from '../../types/data';
 import { groupUnitsByCategory } from '../../data/unit-categories';
 
@@ -12,39 +15,59 @@ export function UnitPicker({ units, onChange }: Props) {
 
   const categories = useMemo(() => groupUnitsByCategory(units), [units]);
 
-  // Stage 2: show units in active category
+  // Stage 2: units in selected category
   if (activeCategory) {
     const group = categories.find((g) => g.category === activeCategory);
     if (!group) return null;
 
     return (
-      <div className="picker">
-        <label>Unit</label>
-        <button className="faction-back-btn" onClick={() => setActiveCategory(null)}>
-          ◂ {group.displayName}
-        </button>
+      <div className="space-y-1">
+        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Unit
+        </label>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-1 h-11 px-3 text-sm text-muted-foreground"
+          onClick={() => setActiveCategory(null)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {group.displayName}
+        </Button>
         {group.units.map((u) => (
-          <button key={u.name} className="faction-btn" onClick={() => onChange(u.name)}>
+          <Button
+            key={u.name}
+            variant="ghost"
+            className="w-full justify-start h-11 px-3 text-sm"
+            onClick={() => onChange(u.name)}
+          >
             {u.name}
-          </button>
+          </Button>
         ))}
       </div>
     );
   }
 
-  // Stage 1: show categories
+  // Stage 1: categories
   return (
-    <div className="picker">
-      <label>Unit</label>
+    <div className="space-y-1">
+      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Unit
+      </label>
       {categories.map((group) => (
-        <button
+        <Button
           key={group.category}
-          className="faction-group-btn"
+          variant="ghost"
+          className="w-full justify-between h-11 px-3 text-sm"
           onClick={() => setActiveCategory(group.category)}
         >
           {group.displayName}
-          <span className="faction-count">{group.units.length}</span>
-        </button>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {group.units.length}
+            </Badge>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+        </Button>
       ))}
     </div>
   );

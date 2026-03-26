@@ -12,6 +12,7 @@ interface Props {
   attackMode?: 'ranged' | 'melee';
   onSlotSelect?: (slotId: string, optionKey: string | null) => void;
   onVariableSlotCount?: (groupId: string, count: number) => void;
+  onVariableSlotChange?: (slotId: string, optionKey: string, count: number) => void;
   onDefinitionCount?: (definitionName: string, count: number) => void;
   onWeaponFiringCount?: (groupId: string, weaponName: string, count: number) => void;
 }
@@ -25,20 +26,16 @@ export function UnitConfigurator({
   attackMode = 'ranged',
   onSlotSelect,
   onVariableSlotCount,
+  onVariableSlotChange,
   onDefinitionCount,
   onWeaponFiringCount,
 }: Props) {
   const isAttacker = side === 'attacker';
 
-  // Sort: base groups first, then variants
   const sorted = [...models].sort((a, b) => {
     if (a.definitionName !== b.definitionName) {
-      const aIdx = datasheet.model_definitions.findIndex(
-        (d) => d.name === a.definitionName
-      );
-      const bIdx = datasheet.model_definitions.findIndex(
-        (d) => d.name === b.definitionName
-      );
+      const aIdx = datasheet.model_definitions.findIndex((d) => d.name === a.definitionName);
+      const bIdx = datasheet.model_definitions.findIndex((d) => d.name === b.definitionName);
       return aIdx - bIdx;
     }
     if (a.isBase && !b.isBase) return -1;
@@ -47,27 +44,23 @@ export function UnitConfigurator({
   });
 
   return (
-    <div className="unit-configurator">
+    <div className="space-y-2">
       <UnitInfoCard datasheet={datasheet} />
 
       {sorted.map((group) => {
-        const def = datasheet.model_definitions.find(
-          (d) => d.name === group.definitionName
-        );
+        const def = datasheet.model_definitions.find((d) => d.name === group.definitionName);
         const maxCount = group.isBase
           ? (def?.max_models ?? group.count)
-          : group.count + (models.find(
-              (m) => m.definitionName === group.definitionName && m.isBase
-            )?.count ?? 0);
+          : group.count +
+            (models.find((m) => m.definitionName === group.definitionName && m.isBase)?.count ?? 0);
 
-        const groupFiringConfig = firingConfig.filter(
-          (fc) => fc.groupId === group.groupId
-        );
+        const groupFiringConfig = firingConfig.filter((fc) => fc.groupId === group.groupId);
 
         return (
           <ModelGroup
             key={group.groupId}
             group={group}
+            allModels={models}
             datasheet={datasheet}
             slots={slots}
             firingConfig={groupFiringConfig}
@@ -83,11 +76,11 @@ export function UnitConfigurator({
             }
             onWeaponCountChange={
               onWeaponFiringCount
-                ? (weaponName, count) =>
-                    onWeaponFiringCount(group.groupId, weaponName, count)
+                ? (weaponName, count) => onWeaponFiringCount(group.groupId, weaponName, count)
                 : undefined
             }
             onSlotSelect={onSlotSelect}
+            onVariableSlotChange={onVariableSlotChange}
           />
         );
       })}

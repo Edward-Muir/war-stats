@@ -8,6 +8,7 @@ import {
   computeEquipment,
   buildDefaultModels,
   applySlotSelection,
+  setVariableCount,
   deriveSelectedWeapons,
   buildDefaultFiringConfig,
 } from '../logic/wargear-slots';
@@ -416,5 +417,89 @@ describe('Empty option filtering', () => {
 
     const slots = buildWargearSlots(ds);
     expect(slots.length).toBe(0);
+  });
+});
+
+// ─── Test 9-13: Deathwatch Veterans — per_n_models slot splitting ──────
+
+describe('Deathwatch Veterans — per_n_models slots', () => {
+  let ds: UnitDatasheet;
+  let slots: ReturnType<typeof buildWargearSlots>;
+
+  beforeAll(() => {
+    ds = findUnit(spaceMarine, 'Deathwatch Veterans');
+    slots = buildWargearSlots(ds);
+  });
+
+  it('should create independent variable_count slots for each per_n_models option', () => {
+    const vetSlots = slots.filter(
+      (s) => s.definitionName === 'Deathwatch Veterans' && s.scope.kind === 'variable_count'
+    );
+    // 6 per_n_models options + 1 specific_count (Black Shield blades) = 7
+    expect(vetSlots.length).toBe(7);
+  });
+
+  it('should NOT assign per_n_models or specific_count slots to the Watch Sergeant', () => {
+    const sgtSlots = slots.filter((s) => s.definitionName === 'Watch Sergeant');
+    // Only the 2 named_model replace slots (power weapon, boltgun)
+    expect(sgtSlots.length).toBe(2);
+    expect(sgtSlots.every((s) => s.scope.kind === 'single_model')).toBe(true);
+  });
+
+  it('should have correct maxCount per slot based on each option\'s max_per_n', () => {
+    const vetSlots = slots.filter(
+      (s) => s.definitionName === 'Deathwatch Veterans' && s.scope.kind === 'variable_count'
+    );
+    // With 9 max veterans, floor(9/5)=1, so max_per_n=2 → maxCount=2, max_per_n=1 → maxCount=1
+    const maxCounts = vetSlots
+      .map((s) => (s.scope.kind === 'variable_count' ? s.scope.maxCount : -1))
+      .sort();
+    // Expect: specific_count(1), per_n_models with max_per_n=1 (×3), per_n_models with max_per_n=2 (×3)
+    expect(maxCounts).toEqual([1, 1, 1, 1, 2, 2, 2]);
+  });
+
+  it('should share a budgetGroup across all veteran variable_count slots', () => {
+    const vetSlots = slots.filter(
+      (s) => s.definitionName === 'Deathwatch Veterans' && s.scope.kind === 'variable_count'
+    );
+    const groups = new Set(vetSlots.map((s) => s.budgetGroup));
+    expect(groups.size).toBe(1);
+    expect(vetSlots[0].budgetGroup).toBe('Deathwatch Veterans::boltgun+power weapon');
+  });
+
+  it('should allow allocating models to multiple independent slots', () => {
+    let models = buildDefaultModels(ds, slots);
+    // Base: Watch Sergeant (1), Deathwatch Veterans (4)
+
+    // Allocate 1 thunder hammer (option index 1, choice 0)
+    const thunderSlot = slots.find(
+      (s) => s.definitionName === 'Deathwatch Veterans' &&
+        s.options.some((o) => o.choiceRaw.includes('thunder hammer'))
+    )!;
+    const thunderOptKey = `${thunderSlot.options[0].optionIndex}:${thunderSlot.options[0].choiceIndex}`;
+    models = applySlotSelection(models, slots, ds, thunderSlot.slotId, thunderOptKey);
+    // Find the variant group and set count
+    const thunderGroupId = `${thunderSlot.definitionName}__${thunderSlot.slotId}__${thunderOptKey}`;
+    models = setVariableCount(models, thunderGroupId, 1, ds, slots);
+
+    // Allocate 1 frag cannon (option index 4, choice 0)
+    const fragSlot = slots.find(
+      (s) => s.definitionName === 'Deathwatch Veterans' &&
+        s.options.some((o) => o.choiceRaw.includes('frag cannon'))
+    )!;
+    const fragOptKey = `${fragSlot.options[0].optionIndex}:${fragSlot.options[0].choiceIndex}`;
+    models = applySlotSelection(models, slots, ds, fragSlot.slotId, fragOptKey);
+    const fragGroupId = `${fragSlot.definitionName}__${fragSlot.slotId}__${fragOptKey}`;
+    models = setVariableCount(models, fragGroupId, 1, ds, slots);
+
+    // Base should now be 2 (4 - 1 thunder - 1 frag)
+    const base = models.find((m) => m.definitionName === 'Deathwatch Veterans' && m.isBase);
+    expect(base!.count).toBe(2);
+
+    // Both variants exist with count 1
+    const thunderGroup = models.find((m) => m.groupId === thunderGroupId);
+    const fragGroup = models.find((m) => m.groupId === fragGroupId);
+    expect(thunderGroup!.count).toBe(1);
+    expect(fragGroup!.count).toBe(1);
   });
 });

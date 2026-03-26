@@ -25,6 +25,7 @@ export interface WargearSlot {
   options: WargearSlotOption[]; // Available choices
   scope: SlotScope;
   raw: string; // First option's raw text for tooltip
+  budgetGroup?: string; // Shared budget constraint ID for slots competing for the same model pool
 }
 
 // ─── User Selections ────────────────────────────────────────────
