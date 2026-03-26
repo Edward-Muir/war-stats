@@ -82,7 +82,8 @@ export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSli
 
 import type { SimulationInput } from '../../types/simulation';
 import { resolveWeaponGroups, buildDefenderProfile } from '../../logic/unit-config';
-import { getTotalModels } from '../../logic/wargear';
+import { getTotalModels } from '../../logic/wargear-slots';
+import { resolveStratagemEffect } from '../../logic/stratagem-effects';
 
 function buildSimulationInput(state: AppStore): SimulationInput | null {
   const { attacker, defender, simulation } = state;
@@ -113,16 +114,24 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   const defenderModelCount = getTotalModels(defender.models);
   const defenderProfile = buildDefenderProfile(defenderDatasheet, defenderModelCount);
 
+  const attackerEffects = attacker.activeStratagems
+    .map((a) => resolveStratagemEffect(a.stratagem))
+    .filter((e) => e.isParsed);
+
+  const defenderEffects = defender.activeStratagems
+    .map((a) => resolveStratagemEffect(a.stratagem))
+    .filter((e) => e.isParsed);
+
   return {
     attacker: {
       weaponGroups,
       gameState: attacker.gameState,
-      stratagems: attacker.activeStratagems,
+      attackerEffects,
     },
     defender: {
       ...defenderProfile,
       gameState: defender.gameState,
-      stratagems: defender.activeStratagems,
+      defenderEffects,
     },
     iterations: simulation.iterations,
   };

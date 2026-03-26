@@ -54,12 +54,12 @@ function makeInput(
     attacker: {
       weaponGroups,
       gameState: { ...DEFAULT_ATTACKER_STATE },
-      stratagems: [],
+      attackerEffects: [],
     },
     defender: {
       ...defender,
       gameState: { ...DEFAULT_DEFENDER_STATE },
-      stratagems: [],
+      defenderEffects: [],
     },
     iterations,
   };

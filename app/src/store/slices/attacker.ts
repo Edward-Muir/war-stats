@@ -3,13 +3,21 @@ import type { Stratagem } from '../../types/data';
 import type {
   AttackerGameState,
   ConfiguredModel,
+  WargearSlot,
+  WeaponFiringConfig,
   SelectedWeapon,
-  WargearChoice,
   ActiveStratagem,
 } from '../../types/config';
 import { DEFAULT_ATTACKER_STATE } from '../../types/config';
-import { buildDefaultModels } from '../../logic/wargear';
-import { getAvailableWeapons } from '../../logic/unit-config';
+import {
+  buildWargearSlots,
+  buildDefaultModels,
+  buildDefaultFiringConfig,
+  deriveSelectedWeapons,
+  applySlotSelection,
+  setVariableCount,
+  setDefinitionTotal,
+} from '../../logic/wargear-slots';
 import type { AppStore } from '../store';
 
 export interface AttackerSlice {
@@ -18,8 +26,9 @@ export interface AttackerSlice {
     chapter: string | null;
     detachmentName: string | null;
     unitName: string | null;
+    slots: WargearSlot[];
     models: ConfiguredModel[];
-    wargearChoices: WargearChoice[];
+    firingConfig: WeaponFiringConfig[];
     selectedWeapons: SelectedWeapon[];
     gameState: AttackerGameState;
     activeStratagems: ActiveStratagem[];
@@ -27,24 +36,43 @@ export interface AttackerSlice {
   setAttackerFaction: (slug: string, chapter?: string | null) => void;
   setAttackerDetachment: (name: string) => void;
   setAttackerUnit: (name: string) => void;
-  setAttackerModels: (models: ConfiguredModel[]) => void;
-  setAttackerSelectedWeapons: (weapons: SelectedWeapon[]) => void;
+  selectSlotOption: (slotId: string, optionKey: string | null) => void;
+  setVariableSlotCount: (groupId: string, count: number) => void;
+  setVariableSlotAllocation: (slotId: string, optionKey: string, count: number) => void;
+  setDefinitionCount: (definitionName: string, count: number) => void;
+  setWeaponFiringCount: (groupId: string, weaponName: string, count: number) => void;
   setAttackerGameState: (state: Partial<AttackerGameState>) => void;
   toggleAttackerStratagem: (stratagem: Stratagem) => void;
   resetAttacker: () => void;
 }
 
 const initialAttacker: AttackerSlice['attacker'] = {
-  factionSlug: null,
+  factionSlug: 'space-marines',
   chapter: null,
   detachmentName: null,
   unitName: null,
+  slots: [],
   models: [],
-  wargearChoices: [],
+  firingConfig: [],
   selectedWeapons: [],
   gameState: { ...DEFAULT_ATTACKER_STATE },
   activeStratagems: [],
 };
+
+/** Helper to find the datasheet, preferring chapter-specific variant. */
+function findDatasheet(state: AppStore, factionSlug: string, unitName: string) {
+  const data = state.loadedFactions[factionSlug];
+  if (!data) return null;
+  const chapter = state.attacker.chapter;
+  return (
+    (chapter && chapter !== 'ADEPTUS ASTARTES'
+      ? data.datasheets.datasheets.find(
+          (d) =>
+            d.name === unitName && d.faction_keywords.some((k) => k.toUpperCase() === chapter)
+        )
+      : undefined) ?? data.datasheets.datasheets.find((d) => d.name === unitName) ?? null
+  );
+}
 
 export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> = (set, get) => ({
   attacker: { ...initialAttacker },
@@ -70,82 +98,194 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
   setAttackerUnit: (name) => {
     const state = get();
     const faction = state.attacker.factionSlug;
-    const chapter = state.attacker.chapter;
     if (!faction) return;
-    const data = state.loadedFactions[faction];
-    if (!data) return;
-
-    // Prefer chapter-specific variant when a chapter is selected
-    const datasheet =
-      (chapter && chapter !== 'ADEPTUS ASTARTES'
-        ? data.datasheets.datasheets.find(
-            (d) => d.name === name && d.faction_keywords.some((k) => k.toUpperCase() === chapter)
-          )
-        : undefined) ?? data.datasheets.datasheets.find((d) => d.name === name);
+    const datasheet = findDatasheet(state, faction, name);
     if (!datasheet) return;
 
-    const models = buildDefaultModels(datasheet);
-    const available = getAvailableWeapons(datasheet, models);
-    const attackMode = state.attacker.gameState.attackMode;
-    const selectedWeapons = available
-      .filter(({ weapon }) => weapon.type === attackMode)
-      .map(({ weapon, maxFiringModels }) => ({
-        weapon,
-        firingModelCount: maxFiringModels,
-      }));
+    const slots = buildWargearSlots(datasheet);
+    const models = buildDefaultModels(datasheet, slots);
+    const firingConfig = buildDefaultFiringConfig(models, slots, datasheet);
+    const selectedWeapons = deriveSelectedWeapons(
+      models,
+      firingConfig,
+      slots,
+      datasheet,
+      state.attacker.gameState.attackMode
+    );
 
     set({
       attacker: {
         ...state.attacker,
         unitName: name,
+        slots,
         models,
-        wargearChoices: [],
+        firingConfig,
         selectedWeapons,
         activeStratagems: [],
       },
     });
   },
 
-  setAttackerModels: (models) => set((state) => ({ attacker: { ...state.attacker, models } })),
+  selectSlotOption: (slotId, optionKey) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models: oldModels, gameState } = state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
 
-  setAttackerSelectedWeapons: (weapons) =>
-    set((state) => ({ attacker: { ...state.attacker, selectedWeapons: weapons } })),
+      const models = applySlotSelection(oldModels, slots, datasheet, slotId, optionKey);
+      const firingConfig = buildDefaultFiringConfig(models, slots, datasheet);
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
+    }),
+
+  setVariableSlotCount: (groupId, count) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models: oldModels, firingConfig: oldFC, gameState } =
+        state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
+
+      const models = setVariableCount(oldModels, groupId, count, datasheet, slots);
+      // Clamp firing configs to new counts
+      const firingConfig = oldFC.map((fc) => {
+        const group = models.find((m) => m.groupId === fc.groupId);
+        if (!group) return fc;
+        return { ...fc, firingModelCount: Math.min(fc.firingModelCount, group.count) };
+      });
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
+    }),
+
+  setVariableSlotAllocation: (slotId, optionKey, count) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models: oldModels, gameState } = state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
+
+      const slot = slots.find((s) => s.slotId === slotId);
+      if (!slot) return state;
+
+      let models = oldModels;
+      const groupId = `${slot.definitionName}__${slotId}__${optionKey}`;
+
+      if (count === 0) {
+        // Remove variant group for this slot
+        models = applySlotSelection(models, slots, datasheet, slotId, null);
+      } else {
+        // Ensure variant group exists
+        const existingVariant = models.find((m) => m.groupId === groupId);
+        if (!existingVariant) {
+          models = applySlotSelection(models, slots, datasheet, slotId, optionKey);
+        }
+        // Set count (redistributes from base group)
+        models = setVariableCount(models, groupId, count, datasheet, slots);
+      }
+
+      const firingConfig = buildDefaultFiringConfig(models, slots, datasheet);
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
+    }),
+
+  setDefinitionCount: (definitionName, count) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models: oldModels, firingConfig: oldFC, gameState } =
+        state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
+
+      const models = setDefinitionTotal(oldModels, definitionName, count, datasheet);
+      const firingConfig = oldFC.map((fc) => {
+        const group = models.find((m) => m.groupId === fc.groupId);
+        if (!group) return fc;
+        return { ...fc, firingModelCount: Math.min(fc.firingModelCount, group.count) };
+      });
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
+    }),
+
+  setWeaponFiringCount: (groupId, weaponName, count) =>
+    set((state) => {
+      const { factionSlug, unitName, slots, models, gameState } = state.attacker;
+      if (!factionSlug || !unitName) return state;
+      const datasheet = findDatasheet(state, factionSlug, unitName);
+      if (!datasheet) return state;
+
+      const group = models.find((m) => m.groupId === groupId);
+      const clamped = Math.max(0, Math.min(count, group?.count ?? 0));
+
+      const firingConfig = state.attacker.firingConfig.map((fc) =>
+        fc.groupId === groupId && fc.weaponName === weaponName
+          ? { ...fc, firingModelCount: clamped }
+          : fc
+      );
+      const selectedWeapons = deriveSelectedWeapons(
+        models,
+        firingConfig,
+        slots,
+        datasheet,
+        gameState.attackMode
+      );
+
+      return { attacker: { ...state.attacker, firingConfig, selectedWeapons } };
+    }),
 
   setAttackerGameState: (partial) =>
     set((state) => {
       const newGameState = { ...state.attacker.gameState, ...partial };
-      let selectedWeapons = state.attacker.selectedWeapons;
 
-      // If attackMode changed, re-filter weapons and reset mode-specific state
       if (partial.attackMode && partial.attackMode !== state.attacker.gameState.attackMode) {
-        const faction = state.attacker.factionSlug;
-        const unitName = state.attacker.unitName;
-        if (faction && unitName) {
-          const data = state.loadedFactions[faction];
-          const chapter = state.attacker.chapter;
-          const datasheet =
-            (chapter && chapter !== 'ADEPTUS ASTARTES'
-              ? data?.datasheets.datasheets.find(
-                  (d) =>
-                    d.name === unitName &&
-                    d.faction_keywords.some((k) => k.toUpperCase() === chapter)
-                )
-              : undefined) ?? data?.datasheets.datasheets.find((d) => d.name === unitName);
-          if (datasheet) {
-            const available = getAvailableWeapons(datasheet, state.attacker.models);
-            selectedWeapons = available
-              .filter(({ weapon }) => weapon.type === partial.attackMode)
-              .map(({ weapon, maxFiringModels }) => ({
-                weapon,
-                firingModelCount: maxFiringModels,
-              }));
-          }
-        }
-        // Clear state that doesn't apply to the new mode
         if (partial.attackMode === 'melee') {
           newGameState.targetInHalfRange = false;
         } else {
           newGameState.charged = false;
+        }
+      }
+
+      const { factionSlug, unitName, slots, models, firingConfig } = state.attacker;
+      let selectedWeapons = state.attacker.selectedWeapons;
+
+      if (factionSlug && unitName) {
+        const datasheet = findDatasheet(state, factionSlug, unitName);
+        if (datasheet) {
+          selectedWeapons = deriveSelectedWeapons(
+            models,
+            firingConfig,
+            slots,
+            datasheet,
+            newGameState.attackMode
+          );
         }
       }
 

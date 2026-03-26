@@ -1,4 +1,4 @@
-import type { RawWeapon } from "../../types/data";
+import type { RawWeapon } from '../../types/data';
 
 interface Props {
   weapon: RawWeapon;
@@ -6,16 +6,16 @@ interface Props {
 
 export function WeaponProfile({ weapon }: Props) {
   return (
-    <div className="weapon-profile">
-      <span className="weapon-name">{weapon.name}</span>
-      <span className="weapon-stats">
-        {weapon.range} | A:{weapon.A} |{" "}
-        {weapon.type === "ranged" ? `BS:${weapon.BS}` : `WS:${weapon.WS}`} |
-        S:{weapon.S} | AP:{weapon.AP} | D:{weapon.D}
+    <div className="space-y-0.5">
+      <span className="block font-bold text-foreground">{weapon.name}</span>
+      <span className="block text-[0.8125rem] text-muted-foreground">
+        {weapon.range} | A:{weapon.A} |{' '}
+        {weapon.type === 'ranged' ? `BS:${weapon.BS}` : `WS:${weapon.WS}`} | S:{weapon.S} | AP:
+        {weapon.AP} | D:{weapon.D}
       </span>
       {weapon.keywords.length > 0 && (
-        <span className="weapon-keywords">
-          [{weapon.keywords.join(", ")}]
+        <span className="block text-[0.8125rem] text-[var(--keyword-weapon-fg)]">
+          [{weapon.keywords.join(', ')}]
         </span>
       )}
     </div>

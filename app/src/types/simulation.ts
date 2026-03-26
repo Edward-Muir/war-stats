@@ -1,4 +1,5 @@
-import type { AttackerGameState, DefenderGameState, ActiveStratagem } from "./config";
+import type { AttackerGameState, DefenderGameState } from "./config";
+import type { ParsedStratagemEffect } from "../logic/stratagem-effects";
 
 // ─── Dice Expressions ────────────────────────────────────────────
 
@@ -89,6 +90,9 @@ export interface ResolvedModifiers {
   lethalHits: boolean;
   sustainedHits: number;
   devastatingWounds: boolean;
+  damageReduction: number;       // From stratagems (e.g. -1 damage)
+  feelNoPainOverride: number | null; // From stratagems (e.g. FNP 5+)
+  invulnOverride: number | null;     // From stratagems (e.g. 4+ invuln)
 }
 
 // ─── Defender Profile ────────────────────────────────────────────
@@ -109,11 +113,11 @@ export interface SimulationInput {
   attacker: {
     weaponGroups: ResolvedWeaponGroup[];
     gameState: AttackerGameState;
-    stratagems: ActiveStratagem[];
+    attackerEffects: ParsedStratagemEffect[];
   };
   defender: DefenderProfile & {
     gameState: DefenderGameState;
-    stratagems: ActiveStratagem[];
+    defenderEffects: ParsedStratagemEffect[];
   };
   iterations: number;
 }

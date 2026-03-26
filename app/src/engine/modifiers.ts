@@ -1,5 +1,6 @@
-import type { ResolvedModifiers, ResolvedWeaponGroup, DefenderProfile } from "../types/simulation";
+import type { ResolvedModifiers, ResolvedWeaponGroup, DefenderProfile, RerollPolicy } from "../types/simulation";
 import type { AttackerGameState, DefenderGameState } from "../types/config";
+import type { ParsedStratagemEffect } from "../logic/stratagem-effects";
 
 function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
@@ -59,6 +60,12 @@ function computeCritWoundOn(
   return 6;
 }
 
+/** Upgrade a reroll policy: 'all' > 'ones' > 'none'. */
+function upgradeReroll(current: RerollPolicy, incoming: 'ones' | 'all'): RerollPolicy {
+  if (current === 'all') return 'all';
+  return incoming;
+}
+
 /**
  * Compute the effective modifiers for an attack given all context.
  * Applies modifier caps as per 10th Edition rules.
@@ -68,6 +75,8 @@ export function computeModifiers(
   attackerState: AttackerGameState,
   defenderState: DefenderGameState,
   defender: DefenderProfile,
+  attackerEffects: ParsedStratagemEffect[] = [],
+  defenderEffects: ParsedStratagemEffect[] = [],
 ): ResolvedModifiers {
   const kw = weapon.keywords;
 
@@ -78,21 +87,80 @@ export function computeModifiers(
   let damageBonus = 0;
   if (kw.melta > 0 && weapon.targetInHalfRange) damageBonus += kw.melta;
 
+  // Base values from weapon keywords
+  let hitMod = computeHitModifier(kw, weapon.type, attackerState, defenderState);
+  let woundMod = computeWoundModifier(kw, attackerState);
+  let apValue = weapon.ap;
+  let coverBonus = computeCoverBonus(weapon, defenderState, defender);
+  let rerollHits: RerollPolicy = "none";
+  let rerollWounds: RerollPolicy = kw.twinLinked ? "all" : "none";
+  let critHitOn = 6;
+  let critWoundOn = computeCritWoundOn(kw, defender);
+  let lethalHits = kw.lethalHits;
+  let sustainedHits = kw.sustainedHits;
+  let devastatingWounds = kw.devastatingWounds;
+  let ignoresCover = kw.ignoresCover;
+  let damageReduction = 0;
+  let feelNoPainOverride: number | null = null;
+  let invulnOverride: number | null = null;
+
+  // Fold in attacker stratagem effects
+  for (const effect of attackerEffects) {
+    if (effect.combatType !== 'any' && effect.combatType !== weapon.type) continue;
+    const m = effect.modifiers;
+    if (m.hitModifier) hitMod += m.hitModifier;
+    if (m.woundModifier) woundMod += m.woundModifier;
+    if (m.apImprovement) apValue += m.apImprovement;
+    if (m.rerollHits) rerollHits = upgradeReroll(rerollHits, m.rerollHits);
+    if (m.rerollWounds) rerollWounds = upgradeReroll(rerollWounds, m.rerollWounds);
+    if (m.critHitOn) critHitOn = Math.min(critHitOn, m.critHitOn);
+    if (m.critWoundOn) critWoundOn = Math.min(critWoundOn, m.critWoundOn);
+    if (m.lethalHits) lethalHits = true;
+    if (m.sustainedHits) sustainedHits += m.sustainedHits;
+    if (m.devastatingWounds) devastatingWounds = true;
+    if (m.ignoresCover) ignoresCover = true;
+    if (m.lance && attackerState.charged) woundMod += 1;
+  }
+
+  // Fold in defender stratagem effects
+  for (const effect of defenderEffects) {
+    if (effect.combatType !== 'any' && effect.combatType !== weapon.type) continue;
+    const m = effect.modifiers;
+    if (m.hitModifier) hitMod += m.hitModifier;
+    if (m.woundModifier) woundMod += m.woundModifier;
+    if (m.saveModifier) apValue = Math.max(0, apValue - m.saveModifier);
+    if (m.feelNoPain) {
+      feelNoPainOverride = feelNoPainOverride === null ? m.feelNoPain : Math.min(feelNoPainOverride, m.feelNoPain);
+    }
+    if (m.damageReduction) damageReduction += m.damageReduction;
+    if (m.invulnerableSave) {
+      invulnOverride = invulnOverride === null ? m.invulnerableSave : Math.min(invulnOverride, m.invulnerableSave);
+    }
+  }
+
+  // Re-evaluate cover after ignoresCover from stratagems
+  if (ignoresCover && !kw.ignoresCover) {
+    coverBonus = 0;
+  }
+
   return {
-    hitModifier: computeHitModifier(kw, weapon.type, attackerState, defenderState),
-    woundModifier: computeWoundModifier(kw, attackerState),
-    apValue: weapon.ap,
-    coverBonus: computeCoverBonus(weapon, defenderState, defender),
-    rerollHits: "none",
-    rerollWounds: kw.twinLinked ? "all" as const : "none" as const,
+    hitModifier: clamp(hitMod, -1, 1),
+    woundModifier: clamp(woundMod, -1, 1),
+    apValue,
+    coverBonus,
+    rerollHits,
+    rerollWounds,
     attacksBonus,
     damageBonus,
-    critHitOn: 6,
-    critWoundOn: computeCritWoundOn(kw, defender),
+    critHitOn,
+    critWoundOn,
     autoHit: kw.torrent,
-    lethalHits: kw.lethalHits,
-    sustainedHits: kw.sustainedHits,
-    devastatingWounds: kw.devastatingWounds,
+    lethalHits,
+    sustainedHits,
+    devastatingWounds,
+    damageReduction,
+    feelNoPainOverride,
+    invulnOverride,
   };
 }
 

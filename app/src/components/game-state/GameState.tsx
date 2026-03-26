@@ -1,3 +1,5 @@
+import { Toggle } from '@/components/ui/toggle';
+import { cn } from '@/lib/utils';
 import type { AttackerGameState, DefenderGameState } from '../../types/config';
 
 interface Props {
@@ -7,6 +9,35 @@ interface Props {
   onDefenderChange: (state: Partial<DefenderGameState>) => void;
 }
 
+function GameChip({
+  pressed,
+  onPressedChange,
+  side,
+  children,
+  className,
+}: {
+  pressed: boolean;
+  onPressedChange: (pressed: boolean) => void;
+  side: 'attacker' | 'defender';
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Toggle
+      pressed={pressed}
+      onPressedChange={onPressedChange}
+      className={cn(
+        'h-9 rounded-full border border-border px-3.5 text-xs font-semibold data-[state=off]:bg-transparent',
+        pressed && side === 'attacker' && 'border-attacker bg-attacker/15 text-attacker',
+        pressed && side === 'defender' && 'border-defender bg-defender/15 text-defender',
+        className,
+      )}
+    >
+      {children}
+    </Toggle>
+  );
+}
+
 export function GameState({
   attackerState,
   defenderState,
@@ -14,63 +45,63 @@ export function GameState({
   onDefenderChange,
 }: Props) {
   return (
-    <div className="chip-row">
-      <button
-        type="button"
-        className={`chip chip--attacker ${attackerState.remainedStationary ? 'chip--active' : ''}`}
-        onClick={() => onAttackerChange({ remainedStationary: !attackerState.remainedStationary })}
+    <div className="flex flex-wrap gap-2">
+      <GameChip
+        pressed={attackerState.remainedStationary}
+        onPressedChange={(v) => onAttackerChange({ remainedStationary: v })}
+        side="attacker"
       >
         Stationary
-      </button>
-      <button
-        type="button"
-        className={`chip chip--attacker ${attackerState.advanced ? 'chip--active' : ''}`}
-        onClick={() => onAttackerChange({ advanced: !attackerState.advanced })}
+      </GameChip>
+      <GameChip
+        pressed={attackerState.advanced}
+        onPressedChange={(v) => onAttackerChange({ advanced: v })}
+        side="attacker"
       >
         Advanced
-      </button>
+      </GameChip>
       {attackerState.attackMode === 'melee' && (
-        <button
-          type="button"
-          className={`chip chip--attacker ${attackerState.charged ? 'chip--active' : ''}`}
-          onClick={() => onAttackerChange({ charged: !attackerState.charged })}
+        <GameChip
+          pressed={attackerState.charged}
+          onPressedChange={(v) => onAttackerChange({ charged: v })}
+          side="attacker"
         >
           Charged
-        </button>
+        </GameChip>
       )}
       {attackerState.attackMode === 'ranged' && (
-        <button
-          type="button"
-          className={`chip chip--attacker ${attackerState.targetInHalfRange ? 'chip--active' : ''}`}
-          onClick={() => onAttackerChange({ targetInHalfRange: !attackerState.targetInHalfRange })}
+        <GameChip
+          pressed={attackerState.targetInHalfRange}
+          onPressedChange={(v) => onAttackerChange({ targetInHalfRange: v })}
+          side="attacker"
         >
           Half Range
-        </button>
+        </GameChip>
       )}
-      <button
-        type="button"
-        className={`chip chip--defender ${defenderState.closestTarget ? 'chip--active' : ''}`}
-        onClick={() => onDefenderChange({ closestTarget: !defenderState.closestTarget })}
+      <GameChip
+        pressed={defenderState.closestTarget}
+        onPressedChange={(v) => onDefenderChange({ closestTarget: v })}
+        side="defender"
       >
         Closest Unit
-      </button>
+      </GameChip>
       {attackerState.attackMode === 'ranged' && (
-        <button
-          type="button"
-          className={`chip chip--defender ${defenderState.benefitOfCover ? 'chip--active' : ''}`}
-          onClick={() => onDefenderChange({ benefitOfCover: !defenderState.benefitOfCover })}
+        <GameChip
+          pressed={defenderState.benefitOfCover}
+          onPressedChange={(v) => onDefenderChange({ benefitOfCover: v })}
+          side="defender"
         >
           Cover
-        </button>
+        </GameChip>
       )}
       {attackerState.attackMode === 'ranged' && (
-        <button
-          type="button"
-          className={`chip chip--defender ${defenderState.stealthAll ? 'chip--active' : ''}`}
-          onClick={() => onDefenderChange({ stealthAll: !defenderState.stealthAll })}
+        <GameChip
+          pressed={defenderState.stealthAll}
+          onPressedChange={(v) => onDefenderChange({ stealthAll: v })}
+          side="defender"
         >
           Stealth
-        </button>
+        </GameChip>
       )}
     </div>
   );

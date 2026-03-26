@@ -85,8 +85,15 @@ function resolveSave(
   const armourSave = saveRoll - modifiers.apValue + modifiers.coverBonus;
   const armourPasses = armourSave >= defender.save;
 
-  const invulnPasses =
-    defender.invulnerableSave !== null && saveRoll >= defender.invulnerableSave;
+  // Use best invuln between defender's base and stratagem override
+  let effectiveInvuln = defender.invulnerableSave;
+  if (modifiers.invulnOverride !== null) {
+    effectiveInvuln = effectiveInvuln === null
+      ? modifiers.invulnOverride
+      : Math.min(effectiveInvuln, modifiers.invulnOverride);
+  }
+
+  const invulnPasses = effectiveInvuln !== null && saveRoll >= effectiveInvuln;
 
   return armourPasses || invulnPasses;
 }
@@ -148,7 +155,7 @@ export function resolveAttack(
 
   // ── Step 5: Inflict Damage ──
   const rawDamage = rollDiceExpr(damage) + modifiers.damageBonus;
-  result.damage = Math.max(1, rawDamage);
+  result.damage = Math.max(1, rawDamage - modifiers.damageReduction);
 
   return result;
 }

@@ -34,7 +34,6 @@ export function UnitOverlay({ side, isOpen, onClose }: Props) {
     isAttacker ? s.attacker.factionSlug : s.defender.factionSlug
   );
   const chapter = useAppStore((s) => (isAttacker ? s.attacker.chapter : s.defender.chapter));
-  const unitName = useAppStore((s) => (isAttacker ? s.attacker.unitName : s.defender.unitName));
   const setUnit = useAppStore((s) => (isAttacker ? s.setAttackerUnit : s.setDefenderUnit));
 
   const { data } = useFactionData(factionSlug);
@@ -54,12 +53,10 @@ export function UnitOverlay({ side, isOpen, onClose }: Props) {
     >
       <UnitPicker
         units={units}
-        value={unitName}
         onChange={(name) => {
           setUnit(name);
           onClose();
         }}
-        onClear={() => setUnit('')}
       />
     </Overlay>
   );

@@ -38,13 +38,24 @@ function runSingleIteration(input: SimulationInput): SingleSimulationResult {
   let allMortalWounds = 0;
 
   // Resolve each weapon group
+  let effectiveFNP = defender.feelNoPain;
+
   for (const weaponGroup of input.attacker.weaponGroups) {
     const modifiers = computeModifiers(
       weaponGroup,
       input.attacker.gameState,
       defender.gameState,
       defender,
+      input.attacker.attackerEffects,
+      input.defender.defenderEffects,
     );
+
+    // Use best FNP between defender's base and stratagem override
+    if (modifiers.feelNoPainOverride !== null) {
+      effectiveFNP = effectiveFNP === null
+        ? modifiers.feelNoPainOverride
+        : Math.min(effectiveFNP, modifiers.feelNoPainOverride);
+    }
 
     const groupResult = resolveWeaponGroup(weaponGroup, modifiers, defender);
 
@@ -61,7 +72,7 @@ function runSingleIteration(input: SimulationInput): SingleSimulationResult {
     allDamage,
     allMortalWounds,
     pool,
-    defender.feelNoPain,
+    effectiveFNP,
   );
 
   return {

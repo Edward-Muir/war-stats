@@ -1,110 +1,89 @@
 import type { UnitDatasheet } from '../../types/data';
-import type { ConfiguredModel, SelectedWeapon } from '../../types/config';
-import { StatLine } from '../shared/StatLine';
-import { ModelCountSelector } from './ModelCountSelector';
-import { WargearConfigurator } from './WargearConfigurator';
-import { WeaponSelector } from './WeaponSelector';
-import { getAvailableWeapons, isWargearCustomized } from '../../logic/unit-config';
+import type { ConfiguredModel, WargearSlot, WeaponFiringConfig } from '../../types/config';
+import { UnitInfoCard } from './UnitInfoCard';
+import { ModelGroup } from './ModelGroup';
 
 interface Props {
   datasheet: UnitDatasheet;
   models: ConfiguredModel[];
-  onModelsChange: (models: ConfiguredModel[]) => void;
-  /** Only shown for attacker */
-  selectedWeapons?: SelectedWeapon[];
-  onWeaponsChange?: (weapons: SelectedWeapon[]) => void;
+  slots: WargearSlot[];
+  firingConfig: WeaponFiringConfig[];
   side: 'attacker' | 'defender';
   attackMode?: 'ranged' | 'melee';
+  onSlotSelect?: (slotId: string, optionKey: string | null) => void;
+  onVariableSlotCount?: (groupId: string, count: number) => void;
+  onVariableSlotChange?: (slotId: string, optionKey: string, count: number) => void;
+  onDefinitionCount?: (definitionName: string, count: number) => void;
+  onWeaponFiringCount?: (groupId: string, weaponName: string, count: number) => void;
 }
 
 export function UnitConfigurator({
   datasheet,
   models,
-  onModelsChange,
-  selectedWeapons,
-  onWeaponsChange,
+  slots,
+  firingConfig,
   side,
   attackMode = 'ranged',
+  onSlotSelect,
+  onVariableSlotCount,
+  onVariableSlotChange,
+  onDefinitionCount,
+  onWeaponFiringCount,
 }: Props) {
-  const available = getAvailableWeapons(datasheet, models);
+  const isAttacker = side === 'attacker';
 
-  const hasVariableModels = datasheet.model_definitions.some((d) => d.min_models !== d.max_models);
-  const hasWargearOptions = datasheet.wargear_options.length > 0;
-  const wargearCustomized = hasWargearOptions && isWargearCustomized(datasheet, models);
-
-  const modelSummary = models.map((m) => `${m.count} ${m.definitionName}`).join(', ');
-
-  const selectedWeaponCount = selectedWeapons?.length ?? 0;
+  const sorted = [...models].sort((a, b) => {
+    if (a.definitionName !== b.definitionName) {
+      const aIdx = datasheet.model_definitions.findIndex((d) => d.name === a.definitionName);
+      const bIdx = datasheet.model_definitions.findIndex((d) => d.name === b.definitionName);
+      return aIdx - bIdx;
+    }
+    if (a.isBase && !b.isBase) return -1;
+    if (!a.isBase && b.isBase) return 1;
+    return 0;
+  });
 
   return (
-    <div className="unit-configurator">
-      <h3>{datasheet.name}</h3>
-      <StatLine stats={datasheet.stats} invulnerableSave={datasheet.invulnerable_save} />
+    <div className="space-y-2">
+      <UnitInfoCard datasheet={datasheet} />
 
-      <details className="config-section">
-        <summary>Keywords ({datasheet.keywords.length})</summary>
-        <div className="config-section-content">
-          <div className="unit-keywords">
-            {datasheet.keywords.map((k) => (
-              <span key={k} className="keyword-badge keyword-unit">
-                {k}
-              </span>
-            ))}
-          </div>
-        </div>
-      </details>
+      {sorted.map((group) => {
+        const def = datasheet.model_definitions.find((d) => d.name === group.definitionName);
+        const maxCount = group.isBase
+          ? (def?.max_models ?? group.count)
+          : group.count +
+            (models.find((m) => m.definitionName === group.definitionName && m.isBase)?.count ?? 0);
 
-      {hasVariableModels && (
-        <details className="config-section">
-          <summary>Models · {modelSummary}</summary>
-          <div className="config-section-content">
-            <ModelCountSelector
-              definitions={datasheet.model_definitions}
-              models={models}
-              onChange={onModelsChange}
-            />
-          </div>
-        </details>
-      )}
+        const groupFiringConfig = firingConfig.filter((fc) => fc.groupId === group.groupId);
 
-      {hasWargearOptions && (
-        <details className="config-section">
-          <summary>
-            Wargear Options ({datasheet.wargear_options.length})
-            {wargearCustomized && <span className="config-badge">customized</span>}
-          </summary>
-          <div className="config-section-content">
-            <WargearConfigurator datasheet={datasheet} models={models} onChange={onModelsChange} />
-          </div>
-        </details>
-      )}
-
-      {side === 'attacker' && selectedWeapons && onWeaponsChange && (
-        <details className="config-section">
-          <summary>Weapons ({selectedWeaponCount} selected)</summary>
-          <div className="config-section-content">
-            <WeaponSelector
-              available={available}
-              selected={selectedWeapons}
-              onChange={onWeaponsChange}
-              attackMode={attackMode}
-            />
-          </div>
-        </details>
-      )}
-
-      {side === 'defender' && (
-        <details className="config-section">
-          <summary>Weapons (reference)</summary>
-          <div className="config-section-content defender-weapons-info">
-            {datasheet.weapons.map((w) => (
-              <div key={w.name} className="weapon-profile">
-                {w.name} — {w.range} | A:{w.A} | S:{w.S} | AP:{w.AP} | D:{w.D}
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+        return (
+          <ModelGroup
+            key={group.groupId}
+            group={group}
+            allModels={models}
+            datasheet={datasheet}
+            slots={slots}
+            firingConfig={groupFiringConfig}
+            interactive={isAttacker}
+            attackMode={isAttacker ? attackMode : undefined}
+            maxCount={maxCount}
+            onCountChange={
+              group.isBase && onDefinitionCount
+                ? (count) => onDefinitionCount(group.definitionName, count)
+                : onVariableSlotCount
+                  ? (count) => onVariableSlotCount(group.groupId, count)
+                  : undefined
+            }
+            onWeaponCountChange={
+              onWeaponFiringCount
+                ? (weaponName, count) => onWeaponFiringCount(group.groupId, weaponName, count)
+                : undefined
+            }
+            onSlotSelect={onSlotSelect}
+            onVariableSlotChange={onVariableSlotChange}
+          />
+        );
+      })}
     </div>
   );
 }

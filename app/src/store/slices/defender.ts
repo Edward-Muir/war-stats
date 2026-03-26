@@ -1,13 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type { Stratagem } from '../../types/data';
-import type {
-  DefenderGameState,
-  ConfiguredModel,
-  WargearChoice,
-  ActiveStratagem,
-} from '../../types/config';
+import type { DefenderGameState, ConfiguredModel, ActiveStratagem } from '../../types/config';
 import { DEFAULT_DEFENDER_STATE } from '../../types/config';
-import { buildDefaultModels } from '../../logic/wargear';
+import { buildWargearSlots, buildDefaultModels } from '../../logic/wargear-slots';
 import type { AppStore } from '../store';
 
 export interface DefenderSlice {
@@ -17,7 +12,6 @@ export interface DefenderSlice {
     detachmentName: string | null;
     unitName: string | null;
     models: ConfiguredModel[];
-    wargearChoices: WargearChoice[];
     gameState: DefenderGameState;
     activeStratagems: ActiveStratagem[];
   };
@@ -31,12 +25,11 @@ export interface DefenderSlice {
 }
 
 const initialDefender: DefenderSlice['defender'] = {
-  factionSlug: null,
+  factionSlug: 'space-marines',
   chapter: null,
   detachmentName: null,
   unitName: null,
   models: [],
-  wargearChoices: [],
   gameState: { ...DEFAULT_DEFENDER_STATE },
   activeStratagems: [],
 };
@@ -64,7 +57,6 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
     const data = state.loadedFactions[faction];
     if (!data) return;
 
-    // Prefer chapter-specific variant when a chapter is selected
     const datasheet =
       (chapter && chapter !== 'ADEPTUS ASTARTES'
         ? data.datasheets.datasheets.find(
@@ -73,14 +65,14 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
         : undefined) ?? data.datasheets.datasheets.find((d) => d.name === name);
     if (!datasheet) return;
 
-    const models = buildDefaultModels(datasheet);
+    const slots = buildWargearSlots(datasheet);
+    const models = buildDefaultModels(datasheet, slots);
 
     set({
       defender: {
         ...state.defender,
         unitName: name,
         models,
-        wargearChoices: [],
         activeStratagems: [],
       },
     });
