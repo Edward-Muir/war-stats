@@ -35,7 +35,7 @@ export function WeaponRow({
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
       <div className="rounded-md border border-border overflow-hidden">
-        <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 min-h-10 text-left">
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 min-h-10 text-left hover:bg-accent/50 transition-colors">
           <span className="flex-1 text-sm text-foreground truncate">{weapon.name}</span>
 
           {hasCheckbox && !readOnly && (

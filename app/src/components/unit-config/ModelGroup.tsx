@@ -71,12 +71,24 @@ export function ModelGroup({
     firingConfig.find((fc) => fc.groupId === group.groupId && fc.weaponName === weaponName)
       ?.firingModelCount ?? group.count;
 
+  const DEFAULT_KEY = '__default__';
+
+  /** Build a value→label map for Base UI Select so the trigger shows labels, not raw keys */
+  const buildSlotItems = (slot: WargearSlot) => {
+    const defaultLabel = slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None';
+    const items: Record<string, string> = { [DEFAULT_KEY]: defaultLabel };
+    for (const opt of slot.options) {
+      items[`${opt.optionIndex}:${opt.choiceIndex}`] = opt.label;
+    }
+    return items;
+  };
+
   if (group.count === 0 && !group.isBase) return null;
 
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
       <Card className={cn('mb-2 overflow-hidden', !group.isBase && 'border-l-[3px] border-l-input')}>
-        <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 min-h-11 text-left">
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 min-h-11 text-left hover:bg-accent/50 transition-colors">
           <span className="flex-1 text-sm font-semibold text-foreground">
             {group.definitionName}
           </span>
@@ -115,19 +127,17 @@ export function ModelGroup({
                           : 'Add'}
                       </span>
                       <Select
-                        value={currentSel?.optionKey ?? ''}
-                        onValueChange={(v) => onSlotSelect?.(slot.slotId, v || null)}
+                        value={currentSel?.optionKey ?? DEFAULT_KEY}
+                        items={buildSlotItems(slot)}
+                        onValueChange={(v) => onSlotSelect?.(slot.slotId, v === DEFAULT_KEY ? null : v)}
                       >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue
-                            placeholder={
-                              slot.type === 'replace'
-                                ? `Keep ${slot.replaces.join(', ')}`
-                                : 'None'
-                            }
-                          />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={DEFAULT_KEY}>
+                            {slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None'}
+                          </SelectItem>
                           {slot.options.map((opt) => {
                             const key = `${opt.optionIndex}:${opt.choiceIndex}`;
                             return (
@@ -157,19 +167,17 @@ export function ModelGroup({
                           : 'Add (all models)'}
                       </span>
                       <Select
-                        value={currentSel?.optionKey ?? ''}
-                        onValueChange={(v) => onSlotSelect?.(slot.slotId, v || null)}
+                        value={currentSel?.optionKey ?? DEFAULT_KEY}
+                        items={buildSlotItems(slot)}
+                        onValueChange={(v) => onSlotSelect?.(slot.slotId, v === DEFAULT_KEY ? null : v)}
                       >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue
-                            placeholder={
-                              slot.type === 'replace'
-                                ? `Keep ${slot.replaces.join(', ')}`
-                                : 'None'
-                            }
-                          />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={DEFAULT_KEY}>
+                            {slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None'}
+                          </SelectItem>
                           {slot.options.map((opt) => {
                             const key = `${opt.optionIndex}:${opt.choiceIndex}`;
                             return (
@@ -191,7 +199,16 @@ export function ModelGroup({
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Wargear Options</span>
                 {variableSlots.map((slot) => {
-                  const slotMaxCount = slot.scope.kind === 'variable_count' ? slot.scope.maxCount : 0;
+                  // For per_n_models, compute max dynamically from current model count
+                  let slotMaxCount: number;
+                  if (slot.scope.kind === 'variable_count' && slot.scope.perN) {
+                    const currentTotal = allModels
+                      .filter((m) => m.definitionName === group.definitionName)
+                      .reduce((sum, m) => sum + m.count, 0);
+                    slotMaxCount = Math.floor(currentTotal / slot.scope.perN) * (slot.scope.maxPerN ?? 1);
+                  } else {
+                    slotMaxCount = slot.scope.kind === 'variable_count' ? slot.scope.maxCount : 0;
+                  }
                   // Find existing variant group for this slot
                   const variantGroup = allModels.find(
                     (m) => !m.isBase && m.slotSelections.some((s) => s.slotId === slot.slotId)
@@ -227,6 +244,7 @@ export function ModelGroup({
                       <div className="flex items-center gap-2">
                         <Select
                           value={selectedOptKey ?? ''}
+                          items={buildSlotItems(slot)}
                           onValueChange={(v) => {
                             if (v && currentCount > 0) {
                               onVariableSlotChange?.(slot.slotId, v, currentCount);

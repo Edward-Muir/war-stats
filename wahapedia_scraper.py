@@ -478,6 +478,24 @@ def parse_wargear_options(ds_div) -> list[dict]:
     return options
 
 
+def _split_choice_items(choice_text: str) -> list[str]:
+    """Split a compound choice string into individual equipment items.
+
+    Only splits on boundaries with numeric quantity prefixes (e.g. "and 1 ",
+    ", 1 ") to preserve weapon names that contain "and" or commas
+    (e.g. "transonic blades and chordclaw").
+    """
+    parts = re.split(r"\s+and\s+(?=\d+\s)", choice_text)
+    items: list[str] = []
+    for part in parts:
+        subparts = re.split(r",\s+(?=\d+\s)", part)
+        for sp in subparts:
+            cleaned = re.sub(r"^\d+\s+", "", sp.strip())
+            if cleaned:
+                items.append(cleaned)
+    return items
+
+
 def _parse_wargear_option_text(raw_text: str, li_element) -> dict:
     """
     Parse a single wargear option line into structured data.
@@ -502,14 +520,14 @@ def _parse_wargear_option_text(raw_text: str, li_element) -> dict:
             # Strip leading "1 " quantity
             choice_text = re.sub(r"^1\s+", "", choice_text)
             if choice_text:
-                choices.append(choice_text)
+                choices.append(_split_choice_items(choice_text))
     elif "one of the following" in text.lower():
         # Choices run together without nested UL - split on numbered items
         idx = text.lower().find("one of the following")
         after = text[idx + len("one of the following"):].strip(": ")
         # Try splitting on "1 " boundaries
         parts = re.split(r"(?:^|(?<=\d))\s*1\s+", after)
-        choices = [p.strip().rstrip(".*") for p in parts if p.strip()]
+        choices = [_split_choice_items(p.strip().rstrip(".*")) for p in parts if p.strip()]
 
     if choices:
         option["choices"] = choices
@@ -547,7 +565,7 @@ def _parse_wargear_option_text(raw_text: str, li_element) -> dict:
             if equip_match:
                 item = equip_match.group(1).strip().rstrip(".*")
                 item = re.sub(r"^1\s+", "", item)
-                option["choices"] = [item]
+                option["choices"] = [_split_choice_items(item)]
 
     elif _is_add_have:
         option["type"] = "add"
@@ -559,7 +577,7 @@ def _parse_wargear_option_text(raw_text: str, li_element) -> dict:
             if have_match:
                 item = have_match.group(1).strip().rstrip(".*")
                 item = re.sub(r"^\d+\s+", "", item)
-                option["choices"] = [item]
+                option["choices"] = [_split_choice_items(item)]
 
     elif "must be equipped" in text_lower_type:
         option["type"] = "replace"
@@ -604,7 +622,7 @@ def _parse_wargear_option_text(raw_text: str, li_element) -> dict:
             if with_match:
                 replacement = with_match.group(1).strip()
                 replacement = re.sub(r"^1\s+", "", replacement)
-                option["choices"] = [replacement]
+                option["choices"] = [_split_choice_items(replacement)]
 
     # --- Applies-to scope ---
     text_lower = text.lower()

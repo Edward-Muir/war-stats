@@ -8,7 +8,7 @@ import type {
   WeaponFiringConfig,
   SelectedWeapon,
 } from '../types/config';
-import { parseUpToCount, parseNoDuplicates, cleanChoiceLabel } from './choice-parser';
+import { parseUpToCount, parseNoDuplicates } from './choice-parser';
 
 // ─── Slot Construction ──────────────────────────────────────────
 
@@ -28,7 +28,7 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
     for (const optIdx of applicableOptions) {
       const option = datasheet.wargear_options[optIdx];
       if (!option.choices || option.choices.length === 0) continue;
-      if (option.choices.every((c) => c.trim() === '')) continue;
+      if (option.choices.every((c) => c.length === 0 || c.every((item) => item.trim() === ''))) continue;
 
       const replacesBase = (option.replaces ?? [])
         .map((r) => r.toLowerCase())
@@ -61,13 +61,14 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
       for (const optIdx of group.optionIndices) {
         const opt = datasheet.wargear_options[optIdx];
         for (let ci = 0; ci < opt.choices.length; ci++) {
-          const choice = opt.choices[ci];
-          if (choice.trim() === '') continue;
+          const choiceItems = opt.choices[ci]; // string[] — pre-split equipment items
+          if (choiceItems.length === 0) continue;
+          if (choiceItems.every((item) => item.trim() === '')) continue;
           slotOptions.push({
             optionIndex: optIdx,
             choiceIndex: ci,
-            choiceRaw: choice,
-            label: cleanChoiceLabel(choice),
+            choiceRaw: choiceItems.join(', '),
+            label: choiceItems.join(', '),
           });
         }
       }
@@ -173,13 +174,13 @@ function determineSlotScope(
     return { kind: 'variable_count', maxCount, noDuplicates };
   }
 
-  // per_n_models → variable_count (maxCount computed dynamically)
+  // per_n_models → variable_count (maxCount uses max_models but recalculated dynamically at use time)
   if (firstOption.scope === 'per_n_models') {
     const perN = firstOption.per_n_models ?? 5;
     const maxPerN = firstOption.max_per_n ?? 1;
-    const totalModels = def.max_models; // Use max as initial estimate
+    const totalModels = def.max_models;
     const maxCount = Math.floor(totalModels / perN) * maxPerN;
-    return { kind: 'variable_count', maxCount, noDuplicates: false };
+    return { kind: 'variable_count', maxCount, noDuplicates: false, perN, maxPerN };
   }
 
   // this_model on multi-model definition → variable_count with maxCount = total
@@ -214,8 +215,8 @@ export function computeEquipment(
     const option = datasheet.wargear_options[optIdx];
     if (!option) continue;
 
-    const choiceRaw = option.choices[choiceIdx];
-    if (!choiceRaw) continue;
+    const choiceItems = option.choices[choiceIdx]; // string[] — pre-split equipment items
+    if (!choiceItems || choiceItems.length === 0) continue;
 
     if (slot.type === 'replace') {
       // Remove replaced items
@@ -227,25 +228,13 @@ export function computeEquipment(
       }
     }
 
-    // Add the chosen equipment
-    // Handle compound choices like "auto boltstorm gauntlets and 1 fragstorm grenade launcher"
-    const parts = splitCompoundChoice(choiceRaw);
-    for (const part of parts) {
-      equipment.push(part);
+    // Add the chosen equipment items
+    for (const item of choiceItems) {
+      equipment.push(item);
     }
   }
 
   return equipment;
-}
-
-/**
- * Split a compound choice string like "auto boltstorm gauntlets and 1 fragstorm grenade launcher"
- * into individual equipment names.
- */
-function splitCompoundChoice(choice: string): string[] {
-  // Split on " and " followed by optional "1 " prefix
-  const parts = choice.split(/\s+and\s+(?:\d+\s+)?/i);
-  return parts.map((p) => p.replace(/^\d+\s+/, '').trim()).filter(Boolean);
 }
 
 // ─── Model Group Management ─────────────────────────────────────
@@ -416,8 +405,19 @@ export function setVariableCount(
   // Get the slot to check maxCount
   const slotSel = target.slotSelections[0];
   const slot = slotSel ? slots.find((s) => s.slotId === slotSel.slotId) : null;
-  const maxForSlot =
-    slot?.scope.kind === 'variable_count' ? slot.scope.maxCount : def.max_models;
+
+  // For per_n_models, recompute max from current total model count
+  let maxForSlot: number;
+  if (slot?.scope.kind === 'variable_count' && slot.scope.perN) {
+    const currentTotal = models
+      .filter((m) => m.definitionName === target.definitionName)
+      .reduce((sum, m) => sum + m.count, 0);
+    maxForSlot = Math.floor(currentTotal / slot.scope.perN) * (slot.scope.maxPerN ?? 1);
+  } else if (slot?.scope.kind === 'variable_count') {
+    maxForSlot = slot.scope.maxCount;
+  } else {
+    maxForSlot = def.max_models;
+  }
 
   const base = models.find(
     (m) => m.definitionName === target.definitionName && m.isBase
@@ -518,12 +518,50 @@ export function getGroupWeapons(
   const seen = new Set<string>();
 
   for (const equipName of equipment) {
-    const weapon = datasheet.weapons.find(
-      (w) => w.name.toLowerCase() === equipName.toLowerCase()
+    const lower = equipName.toLowerCase();
+
+    // Exact match first
+    const exact = datasheet.weapons.find(
+      (w) => w.name.toLowerCase() === lower
     );
-    if (weapon && !seen.has(weapon.name)) {
-      weapons.push(weapon);
-      seen.add(weapon.name);
+    if (exact && !seen.has(exact.name)) {
+      weapons.push(exact);
+      seen.add(exact.name);
+      continue;
+    }
+
+    // Multi-profile match: find all weapons whose base name (before ' – ') matches
+    const profileMatches = datasheet.weapons.filter((w) => {
+      const baseName = w.name.split(/\s[–—]\s/)[0].toLowerCase();
+      return baseName === lower && !seen.has(w.name);
+    });
+    if (profileMatches.length > 0) {
+      for (const w of profileMatches) {
+        weapons.push(w);
+        seen.add(w.name);
+      }
+      continue;
+    }
+
+    // Plural fallback: equipment says "twin power fist" but weapon is "Twin power fists"
+    const plural = lower.endsWith('s') ? lower.slice(0, -1) : lower + 's';
+    const pluralExact = datasheet.weapons.find(
+      (w) => w.name.toLowerCase() === plural
+    );
+    if (pluralExact && !seen.has(pluralExact.name)) {
+      weapons.push(pluralExact);
+      seen.add(pluralExact.name);
+      continue;
+    }
+
+    // Plural + multi-profile fallback
+    const pluralProfiles = datasheet.weapons.filter((w) => {
+      const baseName = w.name.split(/\s[–—]\s/)[0].toLowerCase();
+      return baseName === plural && !seen.has(w.name);
+    });
+    for (const w of pluralProfiles) {
+      weapons.push(w);
+      seen.add(w.name);
     }
   }
 

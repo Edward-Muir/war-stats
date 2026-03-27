@@ -9,6 +9,7 @@ import {
   buildDefaultModels,
   applySlotSelection,
   setVariableCount,
+  setDefinitionTotal,
   deriveSelectedWeapons,
   buildDefaultFiringConfig,
 } from '../logic/wargear-slots';
@@ -470,6 +471,8 @@ describe('Deathwatch Veterans — per_n_models slots', () => {
   it('should allow allocating models to multiple independent slots', () => {
     let models = buildDefaultModels(ds, slots);
     // Base: Watch Sergeant (1), Deathwatch Veterans (4)
+    // Need 5+ veterans for per_n_models options (floor(5/5)=1)
+    models = setDefinitionTotal(models, 'Deathwatch Veterans', 5, ds);
 
     // Allocate 1 thunder hammer (option index 1, choice 0)
     const thunderSlot = slots.find(
@@ -492,9 +495,9 @@ describe('Deathwatch Veterans — per_n_models slots', () => {
     const fragGroupId = `${fragSlot.definitionName}__${fragSlot.slotId}__${fragOptKey}`;
     models = setVariableCount(models, fragGroupId, 1, ds, slots);
 
-    // Base should now be 2 (4 - 1 thunder - 1 frag)
+    // Base should now be 3 (5 - 1 thunder - 1 frag)
     const base = models.find((m) => m.definitionName === 'Deathwatch Veterans' && m.isBase);
-    expect(base!.count).toBe(2);
+    expect(base!.count).toBe(3);
 
     // Both variants exist with count 1
     const thunderGroup = models.find((m) => m.groupId === thunderGroupId);

@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Settings } from 'lucide-react';
+import { Crosshair, Settings, Swords } from 'lucide-react';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
 import { GameState } from '../game-state/GameState';
@@ -119,27 +118,20 @@ export function AppShell() {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
         <h1 className="text-base font-bold text-attacker m-0">WH40K Damage Calculator</h1>
-        <ToggleGroup
-          value={[attackMode]}
-          onValueChange={(v) => {
-            const next = v.find((x) => x !== attackMode);
-            if (next) setAttackerGameState({ attackMode: next as 'ranged' | 'melee' });
-          }}
-          className="gap-0"
+        <button
+          type="button"
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-muted transition-transform active:scale-95 hover:bg-accent"
+          onClick={() =>
+            setAttackerGameState({ attackMode: attackMode === 'ranged' ? 'melee' : 'ranged' })
+          }
+          aria-label={attackMode === 'ranged' ? 'Switch to melee' : 'Switch to ranged'}
         >
-          <ToggleGroupItem
-            value="ranged"
-            className="h-8 rounded-r-none border border-border px-3 text-xs font-bold uppercase tracking-wide data-[state=on]:bg-success/20 data-[state=on]:text-success data-[state=on]:border-success"
-          >
-            Ranged
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="melee"
-            className="h-8 rounded-l-none border border-border px-3 text-xs font-bold uppercase tracking-wide data-[state=on]:bg-success/20 data-[state=on]:text-success data-[state=on]:border-success"
-          >
-            Melee
-          </ToggleGroupItem>
-        </ToggleGroup>
+          {attackMode === 'ranged' ? (
+            <Crosshair className="h-5 w-5" />
+          ) : (
+            <Swords className="h-5 w-5" />
+          )}
+        </button>
       </header>
 
       {/* Main content */}
@@ -248,7 +240,7 @@ export function AppShell() {
             </p>
           ) : simulation.results ? (
             <Card
-              className="cursor-pointer transition-colors hover:border-muted-foreground"
+              className="cursor-pointer transition-all hover:border-muted-foreground hover:scale-[1.01] active:scale-[0.99]"
               onClick={() => setStatsOpen(true)}
               role="button"
               tabIndex={0}

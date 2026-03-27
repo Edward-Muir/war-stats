@@ -81,6 +81,10 @@ def _normalise_wargear_option(raw: dict) -> dict:
     out.setdefault("max_per_n", None)
     out.setdefault("replaces", [])
     out.setdefault("choices", [])
+    # Normalize: wrap plain strings in lists for backwards compatibility
+    out["choices"] = [
+        c if isinstance(c, list) else [c] for c in out["choices"]
+    ]
     out.setdefault("model_name", None)
     return out
 

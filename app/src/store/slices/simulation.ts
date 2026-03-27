@@ -37,7 +37,11 @@ export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSli
 
     // Build simulation input from current attacker/defender state
     const input = buildSimulationInput(get());
-    if (!input) return;
+    if (!input) {
+      // Clear stale results when there's nothing to simulate (e.g. no weapons for this mode)
+      set((s) => ({ simulation: { ...s.simulation, results: null } }));
+      return;
+    }
 
     set((s) => ({
       simulation: { ...s.simulation, isRunning: true, results: null },
@@ -88,10 +92,9 @@ import { resolveStratagemEffect } from '../../logic/stratagem-effects';
 function buildSimulationInput(state: AppStore): SimulationInput | null {
   const { attacker, defender, simulation } = state;
 
-  // Need both units selected and weapons chosen
+  // Need both units selected
   if (!attacker.factionSlug || !attacker.unitName) return null;
   if (!defender.factionSlug || !defender.unitName) return null;
-  if (attacker.selectedWeapons.length === 0) return null;
 
   const defenderData = state.loadedFactions[defender.factionSlug];
   if (!defenderData) return null;
@@ -148,11 +151,7 @@ export function initAutoRun(store: StoreApi<AppStore>) {
     // Only react to attacker or defender changes
     if (state.attacker === prev.attacker && state.defender === prev.defender) return;
 
-    const canRun =
-      !!state.attacker.unitName &&
-      !!state.defender.unitName &&
-      state.attacker.selectedWeapons.length > 0;
-
+    const canRun = !!state.attacker.unitName && !!state.defender.unitName;
     if (!canRun) return;
 
     if (debounceTimer) clearTimeout(debounceTimer);

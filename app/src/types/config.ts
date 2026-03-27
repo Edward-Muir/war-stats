@@ -14,7 +14,8 @@ export interface WargearSlotOption {
 export type SlotScope =
   | { kind: 'single_model' } // Dropdown per model (Sergeant weapon swaps)
   | { kind: 'all_or_nothing' } // Toggle/radio for entire unit (Aggressor swap)
-  | { kind: 'variable_count'; maxCount: number; noDuplicates: boolean }; // Count redistribution
+  | { kind: 'variable_count'; maxCount: number; noDuplicates: boolean;
+      perN?: number; maxPerN?: number }; // Count redistribution (perN/maxPerN for dynamic recalc)
 
 /** A wargear slot: one equipment position that can be swapped. */
 export interface WargearSlot {

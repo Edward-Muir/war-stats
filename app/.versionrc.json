@@ -1,0 +1,19 @@
+{
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "refactor", "hidden": true },
+    { "type": "docs", "hidden": true },
+    { "type": "style", "hidden": true },
+    { "type": "test", "hidden": true },
+    { "type": "build", "hidden": true },
+    { "type": "chore", "hidden": true }
+  ],
+  "scripts": {
+    "postchangelog": "node scripts/inject-version.cjs",
+    "precommit": "git add src/version.ts public/version.json"
+  },
+  "tagPrefix": "warstats-v",
+  "bumpFiles": [{ "filename": "package.json", "type": "json" }]
+}

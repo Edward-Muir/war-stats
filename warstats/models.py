@@ -640,7 +640,7 @@ class WargearOption(BaseModel):
     per_n_models: Optional[int] = Field(default=None, description="For per-N rules: the N value")
     max_per_n: Optional[int] = Field(default=None, description="Max models that can take this per N")
     replaces: list[str] = Field(default_factory=list, description="Weapon name(s) being replaced")
-    choices: list[str] = Field(default_factory=list, description="Weapon name(s) that can be chosen")
+    choices: list[list[str]] = Field(default_factory=list, description="Equipment items per choice (each choice is a list of items received)")
     model_name: Optional[str] = Field(default=None, description="For named_model scope: which model")
 
 

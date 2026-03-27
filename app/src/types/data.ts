@@ -83,7 +83,7 @@ export interface WargearOption {
   type: "replace" | "add";
   scope: WargearScope;
   replaces: string[];
-  choices: string[];
+  choices: string[][];
   model_name?: string;
   per_n_models?: number;
   max_per_n?: number;
