@@ -1,4 +1,4 @@
-// JSON data shape types — mirrors the Python Pydantic models 1:1
+// JSON data shape types — mirrors the BattleScribe v2 schema
 // All values remain as strings at the JSON boundary; parsing happens in the engine layer.
 
 // ─── Faction Index ───────────────────────────────────────────────
@@ -60,34 +60,39 @@ export interface AbilityBlock {
   core: string[];
   faction: string[];
   other: Ability[];
-  damaged: string | null;
-  damaged_description: string | null;
+  feelNoPain: number | null;
+  damaged: { threshold: string; description: string } | null;
 }
 
-export interface ModelDefinition {
+// ─── V2 Model & Selection Types ─────────────────────────────────
+
+export interface V2Selection {
+  id: string;
+  label: string;
+  weaponIds: string[];
+  pointsDelta: number;
+}
+
+export interface V2SelectionGroup {
+  id: string;
   name: string;
-  min_models: number;
-  max_models: number;
-  default_equipment: string[];
+  min: number;
+  max: number;
+  defaultSelectionId: string | null;
+  selections: V2Selection[];
 }
 
-export type WargearScope =
-  | "this_model"
-  | "all_models"
-  | "named_model"
-  | "specific_count"
-  | "per_n_models";
-
-export interface WargearOption {
-  raw: string;
-  type: "replace" | "add";
-  scope: WargearScope;
-  replaces: string[];
-  choices: string[];
-  model_name?: string;
-  per_n_models?: number;
-  max_per_n?: number;
+export interface V2ModelDefinition {
+  id: string;
+  name: string;
+  min: number;
+  max: number;
+  stats: RawStats;
+  defaultWeaponIds: string[];
+  selectionGroups: V2SelectionGroup[];
 }
+
+// ─── Unit Datasheet ─────────────────────────────────────────────
 
 export interface PointsOption {
   models: string;
@@ -102,18 +107,16 @@ export interface UnitComposition {
 
 export interface UnitDatasheet {
   name: string;
-  base_size: string;
+  baseSize: string;
   lore?: string;
-  stats: RawStats;
-  invulnerable_save: string | null; // "4+" or null
-  weapons: RawWeapon[];
+  invulnerableSave: string | null; // "4+" or null
+  weapons: Record<string, RawWeapon>;
   abilities: AbilityBlock;
   keywords: string[];
-  faction_keywords: string[];
+  factionKeywords: string[];
   composition: UnitComposition;
-  model_definitions: ModelDefinition[];
-  wargear_options: WargearOption[];
-  leader_units: string[];
+  models: V2ModelDefinition[];
+  leaderUnits: string[];
 }
 
 export interface FactionDatasheets {

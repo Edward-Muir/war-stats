@@ -56,7 +56,7 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
     data?.datasheets.datasheets.find((d) => {
       if (d.name !== unitName) return false;
       if (!chapter || chapter === 'ADEPTUS ASTARTES') return true;
-      const fk = d.faction_keywords.map((k) => k.toUpperCase());
+      const fk = d.factionKeywords.map((k) => k.toUpperCase());
       return fk.includes(chapter);
     }) ?? data?.datasheets.datasheets.find((d) => d.name === unitName);
   const detachment = data?.rules.detachments.find((d) => d.name === detachmentName);

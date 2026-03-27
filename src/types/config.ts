@@ -2,29 +2,30 @@ import type { RawWeapon, Stratagem } from './data';
 
 // ─── Wargear Slots ──────────────────────────────────────────────
 
-/** A single choosable option within a wargear slot. */
+/** A single choosable option within a wargear slot (maps to a V2Selection). */
 export interface WargearSlotOption {
-  optionIndex: number; // Index into datasheet.wargear_options
-  choiceIndex: number; // Index into that option's choices[]
-  choiceRaw: string; // Raw string, e.g. "auto boltstorm gauntlets and 1 fragstorm grenade launcher"
-  label: string; // Human display name
+  selectionGroupId: string; // V2SelectionGroup.id
+  selectionId: string;      // V2Selection.id
+  weaponIds: string[];      // Weapon registry IDs from V2Selection.weaponIds
+  label: string;            // Human display name
+  pointsDelta: number;
 }
 
 /** How a wargear slot behaves in the UI. */
 export type SlotScope =
   | { kind: 'single_model' } // Dropdown per model (Sergeant weapon swaps)
   | { kind: 'all_or_nothing' } // Toggle/radio for entire unit (Aggressor swap)
-  | { kind: 'variable_count'; maxCount: number; noDuplicates: boolean }; // Count redistribution
+  | { kind: 'variable_count'; maxCount: number; noDuplicates: boolean;
+      perN?: number; maxPerN?: number }; // Count redistribution (perN/maxPerN for dynamic recalc)
 
 /** A wargear slot: one equipment position that can be swapped. */
 export interface WargearSlot {
-  slotId: string; // e.g. "Sergeant::bolt_rifle::single_model"
-  definitionName: string; // Which ModelDefinition this applies to
-  replaces: string[]; // What gets swapped out (lowercased)
+  slotId: string; // e.g. "model-id::selection-group-id"
+  definitionName: string; // Which V2ModelDefinition this applies to
+  replaces: string[]; // Default weapon IDs that get replaced (lowercased)
   type: 'replace' | 'add';
   options: WargearSlotOption[]; // Available choices
   scope: SlotScope;
-  raw: string; // First option's raw text for tooltip
   budgetGroup?: string; // Shared budget constraint ID for slots competing for the same model pool
 }
 
@@ -33,7 +34,7 @@ export interface WargearSlot {
 /** An active selection within a wargear slot. */
 export interface SlotSelection {
   slotId: string;
-  optionKey: string; // "${optionIndex}:${choiceIndex}"
+  optionKey: string; // "${selectionGroupId}:${selectionId}"
   modelCount: number; // 1 for single_model, unitSize for all_or_nothing, N for variable_count
 }
 
@@ -42,7 +43,7 @@ export interface SlotSelection {
 /** A group of models sharing the same definition and loadout. */
 export interface ConfiguredModel {
   groupId: string; // Unique ID for this group
-  definitionName: string; // Which ModelDefinition this is from
+  definitionName: string; // Which V2ModelDefinition this is from
   count: number; // How many models in this group
   isBase: boolean; // true for the default-equipment group
   slotSelections: SlotSelection[]; // Active wargear choices for this group

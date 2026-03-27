@@ -63,7 +63,7 @@ export function Overlay({ isOpen, onClose, title, children }: Props) {
               </div>
 
               {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto p-4">{children}</div>
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
             </motion.div>
           </div>
         </>

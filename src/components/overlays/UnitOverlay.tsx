@@ -10,13 +10,13 @@ function filterByChapter(units: UnitDatasheet[], chapter: string | null): UnitDa
   if (chapter === 'ADEPTUS ASTARTES') {
     // "Other Chapters" — only generic units with no chapter-specific keyword
     return units.filter((u) => {
-      const fk = u.faction_keywords.map((k) => k.toUpperCase());
+      const fk = u.factionKeywords.map((k) => k.toUpperCase());
       return fk.length === 1 && fk[0] === 'ADEPTUS ASTARTES';
     });
   }
   // Chapter selected — show units with this chapter keyword OR generic-only
   return units.filter((u) => {
-    const fk = u.faction_keywords.map((k) => k.toUpperCase());
+    const fk = u.factionKeywords.map((k) => k.toUpperCase());
     return fk.includes(chapter) || (fk.length === 1 && fk[0] === 'ADEPTUS ASTARTES');
   });
 }

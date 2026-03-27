@@ -34,8 +34,8 @@ export function UnitConfigurator({
 
   const sorted = [...models].sort((a, b) => {
     if (a.definitionName !== b.definitionName) {
-      const aIdx = datasheet.model_definitions.findIndex((d) => d.name === a.definitionName);
-      const bIdx = datasheet.model_definitions.findIndex((d) => d.name === b.definitionName);
+      const aIdx = datasheet.models.findIndex((d) => d.name === a.definitionName);
+      const bIdx = datasheet.models.findIndex((d) => d.name === b.definitionName);
       return aIdx - bIdx;
     }
     if (a.isBase && !b.isBase) return -1;
@@ -48,9 +48,9 @@ export function UnitConfigurator({
       <UnitInfoCard datasheet={datasheet} />
 
       {sorted.map((group) => {
-        const def = datasheet.model_definitions.find((d) => d.name === group.definitionName);
+        const def = datasheet.models.find((d) => d.name === group.definitionName);
         const maxCount = group.isBase
-          ? (def?.max_models ?? group.count)
+          ? (def?.max ?? group.count)
           : group.count +
             (models.find((m) => m.definitionName === group.definitionName && m.isBase)?.count ?? 0);
 

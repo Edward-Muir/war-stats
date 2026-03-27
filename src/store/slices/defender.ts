@@ -60,7 +60,7 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
     const datasheet =
       (chapter && chapter !== 'ADEPTUS ASTARTES'
         ? data.datasheets.datasheets.find(
-            (d) => d.name === name && d.faction_keywords.some((k) => k.toUpperCase() === chapter)
+            (d) => d.name === name && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
           )
         : undefined) ?? data.datasheets.datasheets.find((d) => d.name === name);
     if (!datasheet) return;

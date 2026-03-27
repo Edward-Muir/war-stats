@@ -68,7 +68,7 @@ function findDatasheet(state: AppStore, factionSlug: string, unitName: string) {
     (chapter && chapter !== 'ADEPTUS ASTARTES'
       ? data.datasheets.datasheets.find(
           (d) =>
-            d.name === unitName && d.faction_keywords.some((k) => k.toUpperCase() === chapter)
+            d.name === unitName && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
         )
       : undefined) ?? data.datasheets.datasheets.find((d) => d.name === unitName) ?? null
   );
@@ -189,6 +189,13 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         // Remove variant group for this slot
         models = applySlotSelection(models, slots, datasheet, slotId, null);
       } else {
+        // Remove any existing variant for a different option in this slot (handles dropdown change)
+        const existingForSlot = models.find(
+          (m) => !m.isBase && m.slotSelections.some((s) => s.slotId === slotId)
+        );
+        if (existingForSlot && existingForSlot.groupId !== groupId) {
+          models = applySlotSelection(models, slots, datasheet, slotId, null);
+        }
         // Ensure variant group exists
         const existingVariant = models.find((m) => m.groupId === groupId);
         if (!existingVariant) {

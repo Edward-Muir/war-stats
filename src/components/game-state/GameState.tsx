@@ -27,7 +27,7 @@ function GameChip({
       pressed={pressed}
       onPressedChange={onPressedChange}
       className={cn(
-        'h-9 rounded-full border border-border px-3.5 text-xs font-semibold data-[state=off]:bg-transparent',
+        'h-9 rounded-full border border-border px-3.5 text-xs font-semibold data-[state=off]:bg-transparent transition-transform hover:-translate-y-0.5 active:scale-95',
         pressed && side === 'attacker' && 'border-attacker bg-attacker/15 text-attacker',
         pressed && side === 'defender' && 'border-defender bg-defender/15 text-defender',
         className,
