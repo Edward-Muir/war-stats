@@ -32,25 +32,27 @@ export function resolveWeaponGroups(selectedWeapons: SelectedWeapon[]): Resolved
 
 /**
  * Build a DefenderProfile from a datasheet and model count.
+ *
+ * Toughness: highest T among all models (per Rules Commentary).
+ * Sv/W: from first model (per-model allocation not yet modelled).
  */
 export function buildDefenderProfile(
   datasheet: UnitDatasheet,
   modelCount: number
 ): DefenderProfile {
-  const toughness = parseInt(datasheet.stats.T, 10);
-  const save = parseRollTarget(datasheet.stats.Sv);
-  const wounds = parseInt(datasheet.stats.W, 10);
-  const invulnerableSave = datasheet.invulnerable_save
-    ? parseRollTarget(datasheet.invulnerable_save)
+  // Toughness is the highest among all models in the unit
+  const toughness = Math.max(
+    ...datasheet.models.map((m) => parseInt(m.stats.T, 10))
+  );
+  const firstModel = datasheet.models[0];
+  const save = parseRollTarget(firstModel.stats.Sv);
+  const wounds = parseInt(firstModel.stats.W, 10);
+  const invulnerableSave = datasheet.invulnerableSave
+    ? parseRollTarget(datasheet.invulnerableSave)
     : null;
 
-  let feelNoPain: number | null = null;
-  for (const ability of datasheet.abilities.core) {
-    const fnpMatch = ability.match(/feel no pain (\d)\+/i);
-    if (fnpMatch) {
-      feelNoPain = parseInt(fnpMatch[1], 10);
-    }
-  }
+  // FNP is now a structured field on abilities
+  const feelNoPain = datasheet.abilities.feelNoPain;
 
   return {
     toughness,
@@ -59,6 +61,6 @@ export function buildDefenderProfile(
     wounds,
     modelCount,
     feelNoPain,
-    keywords: [...datasheet.keywords, ...datasheet.faction_keywords],
+    keywords: [...datasheet.keywords, ...datasheet.factionKeywords],
   };
 }

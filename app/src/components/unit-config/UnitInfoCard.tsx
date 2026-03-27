@@ -34,7 +34,7 @@ export function UnitInfoCard({ datasheet }: Props) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="px-3 pb-3 pt-0 space-y-3">
-            <StatLine stats={datasheet.stats} invulnerableSave={datasheet.invulnerable_save} />
+            <StatLine stats={datasheet.models[0].stats} invulnerableSave={datasheet.invulnerableSave} />
 
             {abilities.other.map((ability) => (
               <div key={ability.name} className="space-y-0.5">
@@ -43,10 +43,10 @@ export function UnitInfoCard({ datasheet }: Props) {
               </div>
             ))}
 
-            {abilities.damaged && abilities.damaged_description && (
+            {abilities.damaged && (
               <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-destructive">{abilities.damaged}</p>
-                <p className="text-xs text-muted-foreground">{abilities.damaged_description}</p>
+                <p className="text-sm font-semibold text-destructive">{abilities.damaged.threshold}</p>
+                <p className="text-xs text-muted-foreground">{abilities.damaged.description}</p>
               </div>
             )}
 

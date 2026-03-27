@@ -13,7 +13,7 @@ export function filterStratagems(
     matchesAnyTargetKeyword(
       strat.target_keywords,
       unit.keywords,
-      unit.faction_keywords,
+      unit.factionKeywords,
     ),
   );
 }

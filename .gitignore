@@ -161,3 +161,7 @@ rules_pages/
 all_datasheets.json
 all_rules.json
 aeldari_datasheets.json
+
+# BattleScribe data repo (cloned locally)
+bsdata_repo/
+.bsdata_last_build

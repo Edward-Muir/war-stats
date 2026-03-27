@@ -87,7 +87,7 @@ export function AppShell() {
         ? attackerFactionData.datasheets.datasheets.find(
             (d) =>
               d.name === attackerUnitName &&
-              d.faction_keywords.some((k) => k.toUpperCase() === attackerChapter),
+              d.factionKeywords.some((k) => k.toUpperCase() === attackerChapter),
           )
         : undefined) ??
       attackerFactionData.datasheets.datasheets.find((d) => d.name === attackerUnitName);
@@ -105,7 +105,7 @@ export function AppShell() {
         ? defenderFactionData.datasheets.datasheets.find(
             (d) =>
               d.name === defenderUnitName &&
-              d.faction_keywords.some((k) => k.toUpperCase() === defenderChapter),
+              d.factionKeywords.some((k) => k.toUpperCase() === defenderChapter),
           )
         : undefined) ??
       defenderFactionData.datasheets.datasheets.find((d) => d.name === defenderUnitName);

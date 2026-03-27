@@ -1,4 +1,4 @@
-import type { UnitDatasheet, RawWeapon, ModelDefinition } from '../types/data';
+import type { UnitDatasheet, RawWeapon, V2ModelDefinition } from '../types/data';
 import type {
   WargearSlot,
   WargearSlotOption,
@@ -8,91 +8,42 @@ import type {
   WeaponFiringConfig,
   SelectedWeapon,
 } from '../types/config';
-import { parseUpToCount, parseNoDuplicates } from './choice-parser';
 
 // ─── Slot Construction ──────────────────────────────────────────
 
 /**
  * Build all wargear slots for a datasheet.
- * Groups options into slots based on (definitionName, replaces, scopeKind).
+ * Each V2SelectionGroup on each model becomes one WargearSlot.
  */
 export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
   const slots: WargearSlot[] = [];
 
-  for (const def of datasheet.model_definitions) {
-    const applicableOptions = getApplicableOptionIndices(datasheet, def);
+  for (const model of datasheet.models) {
+    for (const group of model.selectionGroups) {
+      const options: WargearSlotOption[] = group.selections.map((sel) => ({
+        selectionGroupId: group.id,
+        selectionId: sel.id,
+        weaponIds: sel.weaponIds,
+        label: sel.label,
+        pointsDelta: sel.pointsDelta,
+      }));
 
-    // Group options by their replaces key to find independent vs exclusive slots
-    const groups = new Map<string, { optionIndices: number[]; replaces: string[] }>();
+      if (options.length === 0) continue;
 
-    for (const optIdx of applicableOptions) {
-      const option = datasheet.wargear_options[optIdx];
-      if (!option.choices || option.choices.length === 0) continue;
-      if (option.choices.every((c) => c.length === 0 || c.every((item) => item.trim() === ''))) continue;
+      const slotId = `${model.id}::${group.id}`;
+      const scope = determineSlotScope(model, group.min, group.max);
 
-      const replacesBase = (option.replaces ?? [])
-        .map((r) => r.toLowerCase())
-        .sort()
-        .join('+') || `add_${optIdx}`;
-      // Include scope in key so named_model and all_models don't merge.
-      // For per_n_models, each option is an independent quota — don't merge.
-      const replacesKey = option.scope === 'per_n_models'
-        ? `${replacesBase}::per_n_models::${optIdx}`
-        : `${replacesBase}::${option.scope}`;
-
-      const existing = groups.get(replacesKey);
-      if (existing) {
-        existing.optionIndices.push(optIdx);
-      } else {
-        groups.set(replacesKey, {
-          optionIndices: [optIdx],
-          replaces: (option.replaces ?? []).map((r) => r.toLowerCase()),
-        });
-      }
-    }
-
-    // Build a WargearSlot for each group
-    for (const [replacesKey, group] of groups) {
-      const firstOption = datasheet.wargear_options[group.optionIndices[0]];
-      const scope = determineSlotScope(datasheet, def, group.optionIndices);
-
-      // Collect all options across all grouped wargear options
-      const slotOptions: WargearSlotOption[] = [];
-      for (const optIdx of group.optionIndices) {
-        const opt = datasheet.wargear_options[optIdx];
-        for (let ci = 0; ci < opt.choices.length; ci++) {
-          const choiceItems = opt.choices[ci]; // string[] — pre-split equipment items
-          if (choiceItems.length === 0) continue;
-          if (choiceItems.every((item) => item.trim() === '')) continue;
-          slotOptions.push({
-            optionIndex: optIdx,
-            choiceIndex: ci,
-            choiceRaw: choiceItems.join(', '),
-            label: choiceItems.join(', '),
-          });
-        }
-      }
-
-      if (slotOptions.length === 0) continue;
-
-      const scopeKind = scope.kind;
-      const slotId = `${def.name}::${replacesKey}::${scopeKind}`;
-
-      // Slots replacing the same equipment on the same definition share a budget group
-      const budgetGroup =
-        (firstOption.scope === 'per_n_models' || firstOption.scope === 'specific_count')
-          ? `${def.name}::${group.replaces.sort().join('+')}`
-          : undefined;
+      // If the group requires a selection (min >= 1), it replaces default weapons
+      const type: 'replace' | 'add' = group.min >= 1 ? 'replace' : 'add';
+      const replaces = group.min >= 1 ? model.defaultWeaponIds.map((id) => id.toLowerCase()) : [];
 
       slots.push({
         slotId,
-        definitionName: def.name,
-        replaces: group.replaces,
-        type: firstOption.type,
-        options: slotOptions,
+        definitionName: model.name,
+        replaces,
+        type,
+        options,
         scope,
-        raw: firstOption.raw,
-        budgetGroup,
       });
     }
   }
@@ -101,91 +52,28 @@ export function buildWargearSlots(datasheet: UnitDatasheet): WargearSlot[] {
 }
 
 /**
- * Get indices of wargear options applicable to a model definition.
- */
-function getApplicableOptionIndices(
-  datasheet: UnitDatasheet,
-  def: ModelDefinition
-): number[] {
-  const isFixedSingleModel = def.min_models === def.max_models && def.max_models === 1;
-
-  return datasheet.wargear_options
-    .map((_, index) => index)
-    .filter((index) => {
-      const opt = datasheet.wargear_options[index];
-      switch (opt.scope) {
-        case 'named_model':
-          return opt.model_name?.toLowerCase() === def.name.toLowerCase();
-        case 'per_n_models':
-          // per_n_models options apply to the multi-model pool, not single-model named characters
-          return !isFixedSingleModel;
-        case 'specific_count':
-          // specific_count options apply to the multi-model pool, not single-model named characters
-          return !isFixedSingleModel;
-        case 'all_models':
-        case 'this_model':
-          return true;
-        default:
-          return true;
-      }
-    });
-}
-
-/**
- * Determine the scope for a wargear slot.
+ * Determine the UI scope for a wargear slot based on model and group constraints.
  */
 function determineSlotScope(
-  datasheet: UnitDatasheet,
-  def: ModelDefinition,
-  optionIndices: number[]
+  model: V2ModelDefinition,
+  _groupMin: number,
+  groupMax: number
 ): SlotScope {
-  const firstOption = datasheet.wargear_options[optionIndices[0]];
-  const isFixedSingleModel = def.min_models === def.max_models && def.max_models === 1;
+  const isFixedSingleModel = model.min === model.max && model.max === 1;
 
-  // Named model on a single-count definition → single_model dropdown
-  if (firstOption.scope === 'named_model' && isFixedSingleModel) {
+  // Single-model definition (e.g. Sergeant) → single dropdown
+  if (isFixedSingleModel) {
     return { kind: 'single_model' };
   }
 
-  // this_model on a single-count definition → single_model dropdown
-  if (firstOption.scope === 'this_model' && isFixedSingleModel) {
-    return { kind: 'single_model' };
+  // Group allows multiple selections → variable count
+  if (groupMax > 1) {
+    return { kind: 'variable_count', maxCount: groupMax, noDuplicates: false };
   }
 
-  // all_models: check for "up to N" constraint
-  if (firstOption.scope === 'all_models') {
-    const upTo = parseUpToCount(firstOption.raw);
-    if (upTo !== null) {
-      const noDuplicates = optionIndices.some((i) =>
-        parseNoDuplicates(datasheet.wargear_options[i].raw)
-      );
-      return { kind: 'variable_count', maxCount: upTo, noDuplicates };
-    }
-    // No "up to" constraint → all_or_nothing
+  // Multi-model definition with single selection → all_or_nothing
+  if (model.max > 1 && groupMax === 1) {
     return { kind: 'all_or_nothing' };
-  }
-
-  // specific_count → variable_count
-  if (firstOption.scope === 'specific_count') {
-    const maxCount = firstOption.max_per_n ?? 1;
-    const noDuplicates = optionIndices.some((i) =>
-      parseNoDuplicates(datasheet.wargear_options[i].raw)
-    );
-    return { kind: 'variable_count', maxCount, noDuplicates };
-  }
-
-  // per_n_models → variable_count (maxCount uses max_models but recalculated dynamically at use time)
-  if (firstOption.scope === 'per_n_models') {
-    const perN = firstOption.per_n_models ?? 5;
-    const maxPerN = firstOption.max_per_n ?? 1;
-    const totalModels = def.max_models;
-    const maxCount = Math.floor(totalModels / perN) * maxPerN;
-    return { kind: 'variable_count', maxCount, noDuplicates: false, perN, maxPerN };
-  }
-
-  // this_model on multi-model definition → variable_count with maxCount = total
-  if (firstOption.scope === 'this_model') {
-    return { kind: 'variable_count', maxCount: def.max_models, noDuplicates: false };
   }
 
   return { kind: 'single_model' };
@@ -194,63 +82,56 @@ function determineSlotScope(
 // ─── Equipment Derivation ───────────────────────────────────────
 
 /**
- * Compute equipment list for a model group from its slot selections.
- * Pure derivation: defaultEquipment + apply all active selections.
+ * Compute weapon IDs for a model group from its slot selections.
+ * Starts with defaultWeaponIds, applies active selections.
  */
-export function computeEquipment(
-  definition: ModelDefinition,
+export function computeWeaponIds(
+  model: V2ModelDefinition,
   slotSelections: SlotSelection[],
-  slots: WargearSlot[],
-  datasheet: UnitDatasheet
+  slots: WargearSlot[]
 ): string[] {
-  const equipment = [...definition.default_equipment];
+  const weaponIds = [...model.defaultWeaponIds];
 
   for (const sel of slotSelections) {
     const slot = slots.find((s) => s.slotId === sel.slotId);
     if (!slot) continue;
 
-    const [optIdxStr, choiceIdxStr] = sel.optionKey.split(':');
-    const optIdx = parseInt(optIdxStr, 10);
-    const choiceIdx = parseInt(choiceIdxStr, 10);
-    const option = datasheet.wargear_options[optIdx];
+    const option = slot.options.find(
+      (o) => `${o.selectionGroupId}:${o.selectionId}` === sel.optionKey
+    );
     if (!option) continue;
 
-    const choiceItems = option.choices[choiceIdx]; // string[] — pre-split equipment items
-    if (!choiceItems || choiceItems.length === 0) continue;
-
     if (slot.type === 'replace') {
-      // Remove replaced items
-      for (const replaced of option.replaces ?? []) {
-        const idx = equipment.findIndex(
-          (e) => e.toLowerCase() === replaced.toLowerCase()
-        );
-        if (idx >= 0) equipment.splice(idx, 1);
+      // Remove replaced weapon IDs
+      for (const replaced of slot.replaces) {
+        const idx = weaponIds.findIndex((id) => id.toLowerCase() === replaced);
+        if (idx >= 0) weaponIds.splice(idx, 1);
       }
     }
 
-    // Add the chosen equipment items
-    for (const item of choiceItems) {
-      equipment.push(item);
+    // Add the selected weapon IDs
+    for (const id of option.weaponIds) {
+      weaponIds.push(id);
     }
   }
 
-  return equipment;
+  return weaponIds;
 }
 
 // ─── Model Group Management ─────────────────────────────────────
 
 /**
  * Build initial model groups for a datasheet.
- * One base group per definition at min_models count, no selections.
+ * One base group per model definition at min count (0 for optional models).
  */
 export function buildDefaultModels(
   datasheet: UnitDatasheet,
   _slots: WargearSlot[]
 ): ConfiguredModel[] {
-  return datasheet.model_definitions.map((def) => ({
-    groupId: def.name,
-    definitionName: def.name,
-    count: def.min_models,
+  return datasheet.models.map((model) => ({
+    groupId: model.name,
+    definitionName: model.name,
+    count: model.min,
     isBase: true,
     slotSelections: [],
   }));
@@ -288,10 +169,8 @@ function applySingleModelSelection(
   optionKey: string | null
 ): ConfiguredModel[] {
   return models.map((m) => {
-    // Only apply to models matching this slot's definition
     if (m.definitionName !== slot.definitionName) return m;
 
-    // Remove old selection for this slot, add new one
     const filtered = m.slotSelections.filter((s) => s.slotId !== slotId);
     if (optionKey) {
       filtered.push({ slotId, optionKey, modelCount: 1 });
@@ -324,10 +203,10 @@ function applyVariableCountSelection(
   slotId: string,
   optionKey: string | null
 ): ConfiguredModel[] {
-  const def = datasheet.model_definitions.find(
+  const model = datasheet.models.find(
     (d) => d.name === slot.definitionName
   );
-  if (!def) return models;
+  if (!model) return models;
 
   if (optionKey === null) {
     // Remove all variant groups for this slot and return count to base
@@ -367,11 +246,10 @@ function applyVariableCountSelection(
   );
 
   if (existingVariant) {
-    // Already exists — no change needed
     return models;
   }
 
-  // Create a new variant group with count 0 (user will adjust with setVariableCount)
+  // Create a new variant group with count 0
   const groupId = `${slot.definitionName}__${slotId}__${optionKey}`;
   const newGroup: ConfiguredModel = {
     groupId,
@@ -397,10 +275,10 @@ export function setVariableCount(
   const target = models.find((m) => m.groupId === groupId);
   if (!target) return models;
 
-  const def = datasheet.model_definitions.find(
+  const model = datasheet.models.find(
     (d) => d.name === target.definitionName
   );
-  if (!def) return models;
+  if (!model) return models;
 
   // Get the slot to check maxCount
   const slotSel = target.slotSelections[0];
@@ -416,7 +294,7 @@ export function setVariableCount(
   } else if (slot?.scope.kind === 'variable_count') {
     maxForSlot = slot.scope.maxCount;
   } else {
-    maxForSlot = def.max_models;
+    maxForSlot = model.max;
   }
 
   const base = models.find(
@@ -424,7 +302,7 @@ export function setVariableCount(
   );
   if (!base) return models;
 
-  // Budget group constraint: total across sibling slots can't exceed def model count
+  // Budget group constraint
   let maxFromBudget = Infinity;
   if (slot?.budgetGroup) {
     const siblingSlotIds = new Set(
@@ -448,7 +326,7 @@ export function setVariableCount(
     maxFromBudget = totalForDef - siblingAllocated;
   }
 
-  // Clamp: can't exceed slot max, budget max, or take more than base has
+  // Clamp
   const available = base.count + target.count;
   const clamped = Math.max(0, Math.min(newCount, maxForSlot, available, maxFromBudget));
   const delta = clamped - target.count;
@@ -460,7 +338,6 @@ export function setVariableCount(
   return models.map((m) => {
     if (m.groupId === groupId) {
       const updated = { ...m, count: clamped };
-      // Also update the modelCount in slot selections
       updated.slotSelections = updated.slotSelections.map((s) => ({
         ...s,
         modelCount: clamped,
@@ -481,10 +358,10 @@ export function setDefinitionTotal(
   newTotal: number,
   datasheet: UnitDatasheet
 ): ConfiguredModel[] {
-  const def = datasheet.model_definitions.find((d) => d.name === definitionName);
-  if (!def) return models;
+  const model = datasheet.models.find((d) => d.name === definitionName);
+  if (!model) return models;
 
-  const clamped = Math.max(def.min_models, Math.min(def.max_models, newTotal));
+  const clamped = Math.max(model.min, Math.min(model.max, newTotal));
   const currentTotal = models
     .filter((m) => m.definitionName === definitionName)
     .reduce((sum, m) => sum + m.count, 0);
@@ -505,63 +382,24 @@ export function setDefinitionTotal(
 // ─── Weapon Resolution ──────────────────────────────────────────
 
 /**
- * Get the weapons available to a model group based on its computed equipment.
+ * Get the weapons available to a model group via direct ID lookup.
  */
 export function getGroupWeapons(
   datasheet: UnitDatasheet,
-  definition: ModelDefinition,
+  model: V2ModelDefinition,
   slotSelections: SlotSelection[],
   slots: WargearSlot[]
 ): RawWeapon[] {
-  const equipment = computeEquipment(definition, slotSelections, slots, datasheet);
+  const weaponIds = computeWeaponIds(model, slotSelections, slots);
   const weapons: RawWeapon[] = [];
   const seen = new Set<string>();
 
-  for (const equipName of equipment) {
-    const lower = equipName.toLowerCase();
-
-    // Exact match first
-    const exact = datasheet.weapons.find(
-      (w) => w.name.toLowerCase() === lower
-    );
-    if (exact && !seen.has(exact.name)) {
-      weapons.push(exact);
-      seen.add(exact.name);
-      continue;
-    }
-
-    // Multi-profile match: find all weapons whose base name (before ' – ') matches
-    const profileMatches = datasheet.weapons.filter((w) => {
-      const baseName = w.name.split(/\s[–—]\s/)[0].toLowerCase();
-      return baseName === lower && !seen.has(w.name);
-    });
-    if (profileMatches.length > 0) {
-      for (const w of profileMatches) {
-        weapons.push(w);
-        seen.add(w.name);
-      }
-      continue;
-    }
-
-    // Plural fallback: equipment says "twin power fist" but weapon is "Twin power fists"
-    const plural = lower.endsWith('s') ? lower.slice(0, -1) : lower + 's';
-    const pluralExact = datasheet.weapons.find(
-      (w) => w.name.toLowerCase() === plural
-    );
-    if (pluralExact && !seen.has(pluralExact.name)) {
-      weapons.push(pluralExact);
-      seen.add(pluralExact.name);
-      continue;
-    }
-
-    // Plural + multi-profile fallback
-    const pluralProfiles = datasheet.weapons.filter((w) => {
-      const baseName = w.name.split(/\s[–—]\s/)[0].toLowerCase();
-      return baseName === plural && !seen.has(w.name);
-    });
-    for (const w of pluralProfiles) {
-      weapons.push(w);
-      seen.add(w.name);
+  for (const id of weaponIds) {
+    if (seen.has(id)) continue;
+    const weapon = datasheet.weapons[id];
+    if (weapon) {
+      weapons.push(weapon);
+      seen.add(id);
     }
   }
 
@@ -579,12 +417,12 @@ export function buildDefaultFiringConfig(
   const config: WeaponFiringConfig[] = [];
 
   for (const group of models) {
-    const def = datasheet.model_definitions.find(
+    const model = datasheet.models.find(
       (d) => d.name === group.definitionName
     );
-    if (!def) continue;
+    if (!model) continue;
 
-    const weapons = getGroupWeapons(datasheet, def, group.slotSelections, slots);
+    const weapons = getGroupWeapons(datasheet, model, group.slotSelections, slots);
     for (const weapon of weapons) {
       config.push({
         groupId: group.groupId,
@@ -613,17 +451,16 @@ export function deriveSelectedWeapons(
   for (const group of models) {
     if (group.count === 0) continue;
 
-    const def = datasheet.model_definitions.find(
+    const model = datasheet.models.find(
       (d) => d.name === group.definitionName
     );
-    if (!def) continue;
+    if (!model) continue;
 
-    const weapons = getGroupWeapons(datasheet, def, group.slotSelections, slots);
+    const weapons = getGroupWeapons(datasheet, model, group.slotSelections, slots);
 
     for (const weapon of weapons) {
       if (weapon.type !== attackMode) continue;
 
-      // Find firing config for this group+weapon
       const fc = firingConfig.find(
         (f) => f.groupId === group.groupId && f.weaponName === weapon.name
       );

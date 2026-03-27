@@ -47,10 +47,10 @@ export function ModelGroup({
 }: Props) {
   const [expanded, setExpanded] = useState(group.isBase && group.count > 0);
 
-  const def = datasheet.model_definitions.find((d) => d.name === group.definitionName);
+  const def = datasheet.models.find((d) => d.name === group.definitionName);
   if (!def) return null;
 
-  const isFixedSingleModel = def.min_models === def.max_models && def.max_models === 1;
+  const isFixedSingleModel = def.min === def.max && def.max === 1;
 
   const allWeapons = getGroupWeapons(datasheet, def, group.slotSelections, slots);
   const weapons = attackMode ? allWeapons.filter((w) => w.type === attackMode) : allWeapons;
@@ -78,7 +78,7 @@ export function ModelGroup({
     const defaultLabel = slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None';
     const items: Record<string, string> = { [DEFAULT_KEY]: defaultLabel };
     for (const opt of slot.options) {
-      items[`${opt.optionIndex}:${opt.choiceIndex}`] = opt.label;
+      items[`${opt.selectionGroupId}:${opt.selectionId}`] = opt.label;
     }
     return items;
   };
@@ -121,7 +121,7 @@ export function ModelGroup({
                   const currentSel = group.slotSelections.find((s) => s.slotId === slot.slotId);
                   return (
                     <div key={slot.slotId} className="space-y-1">
-                      <span className="text-xs text-muted-foreground" title={slot.raw}>
+                      <span className="text-xs text-muted-foreground">
                         {slot.type === 'replace'
                           ? `Replace ${slot.replaces.join(', ')}`
                           : 'Add'}
@@ -139,7 +139,7 @@ export function ModelGroup({
                             {slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None'}
                           </SelectItem>
                           {slot.options.map((opt) => {
-                            const key = `${opt.optionIndex}:${opt.choiceIndex}`;
+                            const key = `${opt.selectionGroupId}:${opt.selectionId}`;
                             return (
                               <SelectItem key={key} value={key}>
                                 {opt.label}
@@ -161,7 +161,7 @@ export function ModelGroup({
                   const currentSel = group.slotSelections.find((s) => s.slotId === slot.slotId);
                   return (
                     <div key={slot.slotId} className="space-y-1">
-                      <span className="text-xs text-muted-foreground" title={slot.raw}>
+                      <span className="text-xs text-muted-foreground">
                         {slot.type === 'replace'
                           ? `Replace ${slot.replaces.join(', ')} (all models)`
                           : 'Add (all models)'}
@@ -179,7 +179,7 @@ export function ModelGroup({
                             {slot.type === 'replace' ? `Keep ${slot.replaces.join(', ')}` : 'None'}
                           </SelectItem>
                           {slot.options.map((opt) => {
-                            const key = `${opt.optionIndex}:${opt.choiceIndex}`;
+                            const key = `${opt.selectionGroupId}:${opt.selectionId}`;
                             return (
                               <SelectItem key={key} value={key}>
                                 {opt.label}
@@ -218,10 +218,10 @@ export function ModelGroup({
                   if (slot.options.length === 1) {
                     // Single choice: label + stepper
                     const opt = slot.options[0];
-                    const optionKey = `${opt.optionIndex}:${opt.choiceIndex}`;
+                    const optionKey = `${opt.selectionGroupId}:${opt.selectionId}`;
                     return (
                       <div key={slot.slotId} className="flex items-center gap-2">
-                        <span className="flex-1 text-xs text-foreground truncate" title={slot.raw}>
+                        <span className="flex-1 text-xs text-foreground truncate">
                           {opt.label}
                         </span>
                         <CountStepper
@@ -258,7 +258,7 @@ export function ModelGroup({
                           </SelectTrigger>
                           <SelectContent>
                             {slot.options.map((opt) => {
-                              const key = `${opt.optionIndex}:${opt.choiceIndex}`;
+                              const key = `${opt.selectionGroupId}:${opt.selectionId}`;
                               return (
                                 <SelectItem key={key} value={key}>
                                   {opt.label}
@@ -272,7 +272,7 @@ export function ModelGroup({
                           min={0}
                           max={slotMaxCount}
                           onChange={(count) => {
-                            const key = selectedOptKey ?? `${slot.options[0].optionIndex}:${slot.options[0].choiceIndex}`;
+                            const key = selectedOptKey ?? `${slot.options[0].selectionGroupId}:${slot.options[0].selectionId}`;
                             onVariableSlotChange?.(slot.slotId, key, count);
                           }}
                         />

@@ -7,7 +7,7 @@ Usage:
     python split_factions.py [-o output_dir]
 
 Reads:
-    all_datasheets.json   — combined datasheets (from wahapedia_scraper.py)
+    all_datasheets.json   — combined datasheets (from battlescribe_converter.py, v2 schema)
     all_rules.json        — combined rules (from wahapedia_rules_scraper.py)
 
 Produces:
@@ -41,7 +41,12 @@ def slugify(name: str) -> str:
 
 
 def split_datasheets(data: dict, out_dir: Path) -> list[dict]:
-    """Split datasheets into per-faction files. Returns index entries."""
+    """Split datasheets into per-faction files. Returns index entries.
+
+    V2 schema: each faction has a top-level 'weapons' registry and 'datasheets'.
+    We drop the faction-level 'weapons' key since each datasheet already
+    carries its own weapons map.
+    """
     ds_dir = out_dir / "datasheets"
     ds_dir.mkdir(parents=True, exist_ok=True)
 
@@ -71,6 +76,7 @@ def split_datasheets(data: dict, out_dir: Path) -> list[dict]:
 
         seen_slugs[slug] = name
 
+        # Write per-faction file (without faction-level weapons registry)
         faction_file = {
             "faction": name,
             "datasheet_count": len(datasheets),
@@ -165,13 +171,17 @@ def main():
     print(f"  Split {sum(e['datasheet_count'] for e in entries)} datasheets "
           f"across {len(entries)} factions")
 
-    # Load and split rules
-    print(f"Loading {args.rules}...")
-    with open(args.rules, "r", encoding="utf-8") as f:
-        rules_data = json.load(f)
+    # Load and split rules (optional — may not exist for BattleScribe-only pipeline)
+    rules_path = Path(args.rules)
+    if rules_path.exists():
+        print(f"Loading {args.rules}...")
+        with open(rules_path, "r", encoding="utf-8") as f:
+            rules_data = json.load(f)
 
-    entries = split_rules(rules_data, out_dir, entries)
-    print(f"  Split rules for {sum(1 for e in entries if 'rules_file' in e)} factions")
+        entries = split_rules(rules_data, out_dir, entries)
+        print(f"  Split rules for {sum(1 for e in entries if 'rules_file' in e)} factions")
+    else:
+        print(f"  Skipping rules ({args.rules} not found)")
 
     # Sort entries by faction name
     entries.sort(key=lambda e: e["faction"])
@@ -198,7 +208,8 @@ def main():
     print(f"\nOutput: {out_dir}/")
     print(f"  index.json:        {index_size:.1f} KB")
     print(f"  datasheets/:       {total_ds_size:.0f} KB across {len(list((out_dir / 'datasheets').glob('*.json')))} files")
-    print(f"  rules/:            {total_rules_size:.0f} KB across {len(list((out_dir / 'rules').glob('*.json')))} files")
+    if (out_dir / 'rules').exists():
+        print(f"  rules/:            {total_rules_size:.0f} KB across {len(list((out_dir / 'rules').glob('*.json')))} files")
     print(f"  Total:             {index_size + total_ds_size + total_rules_size:.0f} KB")
 
 
