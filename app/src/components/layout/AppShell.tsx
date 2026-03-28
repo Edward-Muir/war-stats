@@ -13,6 +13,130 @@ import { UnitOverlay } from '../overlays/UnitOverlay';
 import { ConfigOverlay } from '../overlays/ConfigOverlay';
 import { StatsOverlay } from '../overlays/StatsOverlay';
 import { filterAttackerStratagems, filterDefenderStratagems } from '../../logic/stratagems';
+import { computeGameStateRelevance } from '../../logic/game-state-relevance';
+
+function StatsPreview({
+  hasUnits,
+  simulation,
+  onOpenStats,
+}: {
+  hasUnits: boolean;
+  simulation: import('../../store/store').AppStore['simulation'];
+  onOpenStats: () => void;
+}) {
+  return (
+    <section className="space-y-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-success">Stats</h2>
+      <SimulationStatus isRunning={simulation.isRunning} />
+      {!hasUnits ? (
+        <p className="text-sm text-muted-foreground">
+          Select an attacker and defender unit to see results.
+        </p>
+      ) : simulation.results ? (
+        <Card
+          className="cursor-pointer transition-all hover:border-muted-foreground hover:scale-[1.01] active:scale-[0.99]"
+          onClick={onOpenStats}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onOpenStats();
+          }}
+        >
+          <CardContent className="p-4">
+            <div className="flex gap-6 mb-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">Damage</span>
+                <span className="text-2xl font-bold tabular-nums">
+                  {simulation.results.summary.damage.mean.toFixed(1)}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">Models</span>
+                <span className="text-2xl font-bold tabular-nums">
+                  {simulation.results.summary.modelsKilled.mean.toFixed(1)}
+                </span>
+              </div>
+            </div>
+            <ResultsChart
+              stats={simulation.results.summary.damage}
+              iterations={simulation.results.iterations}
+              label="Damage Distribution"
+              color="var(--attacker)"
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+    </section>
+  );
+}
+
+type FactionData = {
+  datasheets: import('../../types/data').FactionDatasheets;
+  rules: import('../../types/data').FactionRules;
+};
+
+/** Filter stratagems for a given side's unit + detachment. */
+function useFilteredStratagems(
+  side: 'attacker' | 'defender',
+  factionData: FactionData | undefined,
+  unitName: string | null,
+  detachmentName: string | null,
+  chapter: string | null
+) {
+  return useMemo(() => {
+    if (!factionData || !unitName || !detachmentName) return [];
+    const detachment = factionData.rules.detachments.find((d) => d.name === detachmentName);
+    const datasheet =
+      (chapter && chapter !== 'ADEPTUS ASTARTES'
+        ? factionData.datasheets.datasheets.find(
+            (d) => d.name === unitName && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
+          )
+        : undefined) ?? factionData.datasheets.datasheets.find((d) => d.name === unitName);
+    if (!detachment || !datasheet) return [];
+    return side === 'attacker'
+      ? filterAttackerStratagems(detachment, datasheet)
+      : filterDefenderStratagems(detachment, datasheet);
+  }, [side, factionData, unitName, detachmentName, chapter]);
+}
+
+/** Derive which game state toggles are relevant for the current unit/weapon selection. */
+function useGameStateRelevance(
+  attackerStratagems: import('../../types/data').Stratagem[],
+  attackMode: 'ranged' | 'melee',
+  attackerFactionData: FactionData | undefined,
+  attackerUnitName: string | null,
+  defenderFactionData: FactionData | undefined,
+  defenderUnitName: string | null
+) {
+  const selectedWeapons = useAppStore((s) => s.attacker.selectedWeapons);
+  return useMemo(() => {
+    const attackerDatasheet = attackerFactionData?.datasheets.datasheets.find(
+      (d) => d.name === attackerUnitName
+    );
+    const attackerKeywords = [
+      ...(attackerDatasheet?.keywords ?? []),
+      ...(attackerDatasheet?.factionKeywords ?? []),
+    ];
+    const defenderDatasheet = defenderFactionData?.datasheets.datasheets.find(
+      (d) => d.name === defenderUnitName
+    );
+    return computeGameStateRelevance(
+      selectedWeapons,
+      attackerStratagems,
+      attackMode,
+      attackerKeywords,
+      defenderDatasheet?.abilities ?? null
+    );
+  }, [
+    selectedWeapons,
+    attackerStratagems,
+    attackMode,
+    attackerFactionData,
+    attackerUnitName,
+    defenderFactionData,
+    defenderUnitName,
+  ]);
+}
 
 export function AppShell() {
   // Overlay state
@@ -48,10 +172,10 @@ export function AppShell() {
   const toggleAttackerStratagem = useAppStore((s) => s.toggleAttackerStratagem);
   const toggleDefenderStratagem = useAppStore((s) => s.toggleDefenderStratagem);
   const attackerFactionData = useAppStore((s) =>
-    attackerFactionSlug ? s.loadedFactions[attackerFactionSlug] : undefined,
+    attackerFactionSlug ? s.loadedFactions[attackerFactionSlug] : undefined
   );
   const defenderFactionData = useAppStore((s) =>
-    defenderFactionSlug ? s.loadedFactions[defenderFactionSlug] : undefined,
+    defenderFactionSlug ? s.loadedFactions[defenderFactionSlug] : undefined
   );
 
   useFactionData(attackerFactionSlug);
@@ -71,48 +195,36 @@ export function AppShell() {
   }, [defenderFactionData, defenderUnitName, setDefenderUnit]);
 
   const attackerFactionName = factionIndex?.factions.find(
-    (f) => f.slug === attackerFactionSlug,
+    (f) => f.slug === attackerFactionSlug
   )?.faction;
   const defenderFactionName = factionIndex?.factions.find(
-    (f) => f.slug === defenderFactionSlug,
+    (f) => f.slug === defenderFactionSlug
   )?.faction;
 
-  const attackerStratagems = useMemo(() => {
-    if (!attackerFactionData || !attackerUnitName || !attackerDetachmentName) return [];
-    const detachment = attackerFactionData.rules.detachments.find(
-      (d) => d.name === attackerDetachmentName,
-    );
-    const datasheet =
-      (attackerChapter && attackerChapter !== 'ADEPTUS ASTARTES'
-        ? attackerFactionData.datasheets.datasheets.find(
-            (d) =>
-              d.name === attackerUnitName &&
-              d.factionKeywords.some((k) => k.toUpperCase() === attackerChapter),
-          )
-        : undefined) ??
-      attackerFactionData.datasheets.datasheets.find((d) => d.name === attackerUnitName);
-    if (!detachment || !datasheet) return [];
-    return filterAttackerStratagems(detachment, datasheet);
-  }, [attackerFactionData, attackerUnitName, attackerDetachmentName, attackerChapter]);
+  const attackerStratagems = useFilteredStratagems(
+    'attacker',
+    attackerFactionData,
+    attackerUnitName,
+    attackerDetachmentName,
+    attackerChapter
+  );
+  const defenderStratagems = useFilteredStratagems(
+    'defender',
+    defenderFactionData,
+    defenderUnitName,
+    defenderDetachmentName,
+    defenderChapter
+  );
 
-  const defenderStratagems = useMemo(() => {
-    if (!defenderFactionData || !defenderUnitName || !defenderDetachmentName) return [];
-    const detachment = defenderFactionData.rules.detachments.find(
-      (d) => d.name === defenderDetachmentName,
-    );
-    const datasheet =
-      (defenderChapter && defenderChapter !== 'ADEPTUS ASTARTES'
-        ? defenderFactionData.datasheets.datasheets.find(
-            (d) =>
-              d.name === defenderUnitName &&
-              d.factionKeywords.some((k) => k.toUpperCase() === defenderChapter),
-          )
-        : undefined) ??
-      defenderFactionData.datasheets.datasheets.find((d) => d.name === defenderUnitName);
-    if (!detachment || !datasheet) return [];
-    return filterDefenderStratagems(detachment, datasheet);
-  }, [defenderFactionData, defenderUnitName, defenderDetachmentName, defenderChapter]);
-
+  // Compute game state toggle relevance
+  const gameStateRelevance = useGameStateRelevance(
+    attackerStratagems,
+    attackMode,
+    attackerFactionData,
+    attackerUnitName,
+    defenderFactionData,
+    defenderUnitName
+  );
 
   return (
     <div className="mx-auto max-w-[600px] min-h-dvh flex flex-col bg-background">
@@ -224,56 +336,18 @@ export function AppShell() {
           <GameState
             attackerState={attackerState}
             defenderState={defenderState}
+            relevance={gameStateRelevance}
             onAttackerChange={setAttackerGameState}
             onDefenderChange={setDefenderGameState}
           />
         </section>
 
         {/* Stats preview */}
-        <section className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-success">Stats</h2>
-
-          <SimulationStatus isRunning={simulation.isRunning} />
-
-          {!attackerUnitName || !defenderUnitName ? (
-            <p className="text-sm text-muted-foreground">
-              Select an attacker and defender unit to see results.
-            </p>
-          ) : simulation.results ? (
-            <Card
-              className="cursor-pointer transition-all hover:border-muted-foreground hover:scale-[1.01] active:scale-[0.99]"
-              onClick={() => setStatsOpen(true)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') setStatsOpen(true);
-              }}
-            >
-              <CardContent className="p-4">
-                <div className="flex gap-6 mb-3">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs text-muted-foreground">Damage</span>
-                    <span className="text-2xl font-bold tabular-nums">
-                      {simulation.results.summary.damage.mean.toFixed(1)}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs text-muted-foreground">Models</span>
-                    <span className="text-2xl font-bold tabular-nums">
-                      {simulation.results.summary.modelsKilled.mean.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-                <ResultsChart
-                  stats={simulation.results.summary.damage}
-                  iterations={simulation.results.iterations}
-                  label="Damage Distribution"
-                  color="var(--attacker)"
-                />
-              </CardContent>
-            </Card>
-          ) : null}
-        </section>
+        <StatsPreview
+          hasUnits={!!attackerUnitName && !!defenderUnitName}
+          simulation={simulation}
+          onOpenStats={() => setStatsOpen(true)}
+        />
       </main>
 
       {/* Overlays */}

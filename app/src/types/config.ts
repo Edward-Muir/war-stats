@@ -5,9 +5,9 @@ import type { RawWeapon, Stratagem } from './data';
 /** A single choosable option within a wargear slot (maps to a V2Selection). */
 export interface WargearSlotOption {
   selectionGroupId: string; // V2SelectionGroup.id
-  selectionId: string;      // V2Selection.id
-  weaponIds: string[];      // Weapon registry IDs from V2Selection.weaponIds
-  label: string;            // Human display name
+  selectionId: string; // V2Selection.id
+  weaponIds: string[]; // Weapon registry IDs from V2Selection.weaponIds
+  label: string; // Human display name
   pointsDelta: number;
 }
 
@@ -15,8 +15,13 @@ export interface WargearSlotOption {
 export type SlotScope =
   | { kind: 'single_model' } // Dropdown per model (Sergeant weapon swaps)
   | { kind: 'all_or_nothing' } // Toggle/radio for entire unit (Aggressor swap)
-  | { kind: 'variable_count'; maxCount: number; noDuplicates: boolean;
-      perN?: number; maxPerN?: number }; // Count redistribution (perN/maxPerN for dynamic recalc)
+  | {
+      kind: 'variable_count';
+      maxCount: number;
+      noDuplicates: boolean;
+      perN?: number;
+      maxPerN?: number;
+    }; // Count redistribution (perN/maxPerN for dynamic recalc)
 
 /** A wargear slot: one equipment position that can be swapped. */
 export interface WargearSlot {
@@ -99,6 +104,20 @@ export const DEFAULT_DEFENDER_STATE: DefenderGameState = {
   stealthAll: false,
   closestTarget: true,
 };
+
+// ─── Game State Relevance ───────────────────────────────────────
+
+/** Which game state toggles are relevant given current weapons/abilities/stratagems. */
+export interface GameStateRelevance {
+  remainedStationary: boolean;
+  advanced: boolean;
+  charged: boolean;
+  targetInHalfRange: boolean;
+  engagementRange: boolean;
+  benefitOfCover: boolean;
+  stealthAll: boolean | 'locked'; // 'locked' = inherent ability, auto-on, non-toggleable
+  closestTarget: boolean;
+}
 
 // ─── Active Stratagems ───────────────────────────────────────────
 

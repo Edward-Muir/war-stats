@@ -19,6 +19,7 @@ import {
   setDefinitionTotal,
   getProfileBaseName,
 } from '../../logic/wargear-slots';
+import { parseWeaponKeywords } from '../../engine/keywords';
 import type { AppStore } from '../store';
 
 /**
@@ -64,7 +65,8 @@ function updateFiringConfigForNewCounts(
       const oldGroup = oldModels.find((m) => m.groupId === fc.groupId);
       const newGroup = newModels.find((m) => m.groupId === fc.groupId);
       if (!newGroup) return fc;
-      if (!oldGroup) return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+      if (!oldGroup)
+        return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
       if (fc.firingModelCount === oldGroup.count) {
         return { ...fc, firingModelCount: newGroup.count };
       }
@@ -76,7 +78,8 @@ function updateFiringConfigForNewCounts(
     const oldGroup = oldModels.find((m) => m.groupId === fc.groupId);
     const newGroup = newModels.find((m) => m.groupId === fc.groupId);
     if (!newGroup) return fc;
-    if (!oldGroup) return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+    if (!oldGroup)
+      return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
     if (fc.firingModelCount === oldGroup.count) {
       return { ...fc, firingModelCount: newGroup.count };
     }
@@ -131,11 +134,42 @@ function findDatasheet(state: AppStore, factionSlug: string, unitName: string) {
   return (
     (chapter && chapter !== 'ADEPTUS ASTARTES'
       ? data.datasheets.datasheets.find(
-          (d) =>
-            d.name === unitName && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
+          (d) => d.name === unitName && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
         )
-      : undefined) ?? data.datasheets.datasheets.find((d) => d.name === unitName) ?? null
+      : undefined) ??
+    data.datasheets.datasheets.find((d) => d.name === unitName) ??
+    null
   );
+}
+
+/**
+ * Clear game state toggles that are no longer relevant for the given weapons.
+ * Prevents stale state when switching units (e.g., stationary=true with no heavy weapons).
+ */
+function clearIrrelevantToggles(
+  gameState: AttackerGameState,
+  selectedWeapons: SelectedWeapon[]
+): AttackerGameState {
+  let hasHeavy = false;
+  let hasAssault = false;
+  let hasRapidFireOrMelta = false;
+  let hasLance = false;
+
+  for (const sw of selectedWeapons) {
+    const kw = parseWeaponKeywords(sw.weapon.keywords);
+    if (kw.heavy) hasHeavy = true;
+    if (kw.assault) hasAssault = true;
+    if (kw.rapidFire > 0 || kw.melta > 0) hasRapidFireOrMelta = true;
+    if (kw.lance) hasLance = true;
+  }
+
+  return {
+    ...gameState,
+    remainedStationary: hasHeavy ? gameState.remainedStationary : false,
+    advanced: hasAssault ? gameState.advanced : false,
+    targetInHalfRange: hasRapidFireOrMelta ? gameState.targetInHalfRange : false,
+    charged: hasLance ? gameState.charged : false,
+  };
 }
 
 export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> = (set, get) => ({
@@ -174,8 +208,8 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
     let pistolMode: 'pistols_only' | 'non_pistols_only' | null = null;
     if (state.attacker.gameState.engagementRange) {
       const allKeywords = [
-        ...datasheet.keywords.map(k => k.toUpperCase()),
-        ...datasheet.factionKeywords.map(k => k.toUpperCase()),
+        ...datasheet.keywords.map((k) => k.toUpperCase()),
+        ...datasheet.factionKeywords.map((k) => k.toUpperCase()),
       ];
       const isMonsterOrVehicle = allKeywords.includes('MONSTER') || allKeywords.includes('VEHICLE');
       pistolMode = isMonsterOrVehicle ? null : 'pistols_only';
@@ -195,6 +229,9 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       pistolMode
     );
 
+    // Auto-clear game state toggles that aren't relevant for the new unit's weapons
+    const clearedGameState = clearIrrelevantToggles(gameState, selectedWeapons);
+
     set({
       attacker: {
         ...state.attacker,
@@ -203,7 +240,7 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         models,
         firingConfig,
         selectedWeapons,
-        gameState,
+        gameState: clearedGameState,
         activeStratagems: [],
       },
     });
@@ -232,14 +269,26 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
 
   setVariableSlotCount: (groupId, count) =>
     set((state) => {
-      const { factionSlug, unitName, slots, models: oldModels, firingConfig: oldFC, gameState } =
-        state.attacker;
+      const {
+        factionSlug,
+        unitName,
+        slots,
+        models: oldModels,
+        firingConfig: oldFC,
+        gameState,
+      } = state.attacker;
       if (!factionSlug || !unitName) return state;
       const datasheet = findDatasheet(state, factionSlug, unitName);
       if (!datasheet) return state;
 
       const models = setVariableCount(oldModels, groupId, count, datasheet, slots);
-      const firingConfig = updateFiringConfigForNewCounts(oldFC, oldModels, models, slots, datasheet);
+      const firingConfig = updateFiringConfigForNewCounts(
+        oldFC,
+        oldModels,
+        models,
+        slots,
+        datasheet
+      );
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,
@@ -300,14 +349,26 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
 
   setDefinitionCount: (definitionName, count) =>
     set((state) => {
-      const { factionSlug, unitName, slots, models: oldModels, firingConfig: oldFC, gameState } =
-        state.attacker;
+      const {
+        factionSlug,
+        unitName,
+        slots,
+        models: oldModels,
+        firingConfig: oldFC,
+        gameState,
+      } = state.attacker;
       if (!factionSlug || !unitName) return state;
       const datasheet = findDatasheet(state, factionSlug, unitName);
       if (!datasheet) return state;
 
       const models = setDefinitionTotal(oldModels, definitionName, count, datasheet);
-      const firingConfig = updateFiringConfigForNewCounts(oldFC, oldModels, models, slots, datasheet);
+      const firingConfig = updateFiringConfigForNewCounts(
+        oldFC,
+        oldModels,
+        models,
+        slots,
+        datasheet
+      );
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,
@@ -375,10 +436,11 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         const datasheet = findDatasheet(state, factionSlug, unitName);
         if (datasheet) {
           const allKeywords = [
-            ...datasheet.keywords.map(k => k.toUpperCase()),
-            ...datasheet.factionKeywords.map(k => k.toUpperCase()),
+            ...datasheet.keywords.map((k) => k.toUpperCase()),
+            ...datasheet.factionKeywords.map((k) => k.toUpperCase()),
           ];
-          const isMonsterOrVehicle = allKeywords.includes('MONSTER') || allKeywords.includes('VEHICLE');
+          const isMonsterOrVehicle =
+            allKeywords.includes('MONSTER') || allKeywords.includes('VEHICLE');
           newGameState.pistolMode = isMonsterOrVehicle ? null : 'pistols_only';
         }
       } else {

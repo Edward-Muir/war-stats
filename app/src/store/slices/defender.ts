@@ -68,12 +68,19 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
     const slots = buildWargearSlots(datasheet);
     const models = buildDefaultModels(datasheet, slots);
 
+    // Auto-enable stealth if the unit has Stealth as a core ability
+    const hasStealth = datasheet.abilities.core.some((a) => a.toUpperCase() === 'STEALTH');
+
     set({
       defender: {
         ...state.defender,
         unitName: name,
         models,
         activeStratagems: [],
+        gameState: {
+          ...state.defender.gameState,
+          stealthAll: hasStealth,
+        },
       },
     });
   },
