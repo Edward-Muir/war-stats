@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.3](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.2...warstats-v0.1.3) (2026-03-28)
+
+
+### Features
+
+* Dynamic game state toggle relevance ([11333ed](https://github.com/Edward-Muir/war-stats/commit/11333ede588a4ef269bb5b8979076366f1d044ea))
+
 ## 0.1.2 (2026-03-28)
 
 
