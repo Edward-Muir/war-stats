@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.5](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.4...warstats-v0.1.5) (2026-03-28)
+
+
+### Features
+
+* Styling and defneder wargear choices ([6e74a32](https://github.com/Edward-Muir/war-stats/commit/6e74a32615bf705268f5ad55c687acc236be2477))
+
 ## [0.1.4](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.3...warstats-v0.1.4) (2026-03-28)
 
 
