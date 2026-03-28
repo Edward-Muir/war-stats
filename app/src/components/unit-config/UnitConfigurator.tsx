@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import type { UnitDatasheet } from '../../types/data';
+import type { UnitDatasheet, V2ModelDefinition } from '../../types/data';
 import type { ConfiguredModel, WargearSlot, WeaponFiringConfig } from '../../types/config';
+import type { ModelPool } from '../../logic/wargear-slots';
 import { buildModelPools } from '../../logic/wargear-slots';
 import { UnitInfoCard } from './UnitInfoCard';
 import { ModelGroup } from './ModelGroup';
@@ -19,6 +20,61 @@ interface Props {
   onWeaponFiringCount?: (groupId: string, weaponName: string, count: number) => void;
 }
 
+interface CountLimits {
+  displayCount: number | undefined;
+  maxCount: number;
+  minCount: number;
+}
+
+function poolBaseLimits(models: ConfiguredModel[], pool: ModelPool): CountLimits {
+  const variantTotal = models
+    .filter((m) => pool.variantDefNames.includes(m.definitionName))
+    .reduce((sum, m) => sum + m.count, 0);
+  return {
+    displayCount: undefined,
+    maxCount: pool.maxTotal - variantTotal,
+    minCount: Math.max(0, pool.minTotal - variantTotal),
+  };
+}
+
+function poolVariantLimits(
+  group: ConfiguredModel,
+  def: V2ModelDefinition | undefined,
+  models: ConfiguredModel[],
+  pool: ModelPool
+): CountLimits {
+  const base = models.find((m) => m.definitionName === pool.baseDefName && m.isBase);
+  const defMax = def?.max ?? 0;
+  const baseCount = base?.count ?? 0;
+  return {
+    displayCount: undefined,
+    maxCount: Math.min(defMax, baseCount + group.count),
+    minCount: 0,
+  };
+}
+
+function computeCountLimits(
+  group: ConfiguredModel,
+  def: V2ModelDefinition | undefined,
+  models: ConfiguredModel[],
+  pool: ModelPool | undefined
+): CountLimits {
+  if (pool) {
+    if (pool.baseDefName === group.definitionName) return poolBaseLimits(models, pool);
+    if (pool.variantDefNames.includes(group.definitionName))
+      return poolVariantLimits(group, def, models, pool);
+  }
+  if (group.isBase) {
+    const total = models
+      .filter((m) => m.definitionName === group.definitionName)
+      .reduce((sum, m) => sum + m.count, 0);
+    return { displayCount: total, maxCount: def?.max ?? group.count, minCount: def?.min ?? 0 };
+  }
+  const baseCount =
+    models.find((m) => m.definitionName === group.definitionName && m.isBase)?.count ?? 0;
+  return { displayCount: undefined, maxCount: group.count + baseCount, minCount: 0 };
+}
+
 export function UnitConfigurator({
   datasheet,
   models,
@@ -32,7 +88,7 @@ export function UnitConfigurator({
   onDefinitionCount,
   onWeaponFiringCount,
 }: Props) {
-  const isAttacker = side === 'attacker';
+  const interactive = !!(onSlotSelect || onDefinitionCount);
   const pools = useMemo(() => buildModelPools(datasheet), [datasheet]);
 
   const sorted = [...models].sort((a, b) => {
@@ -52,47 +108,12 @@ export function UnitConfigurator({
 
       {sorted.map((group) => {
         const def = datasheet.models.find((d) => d.name === group.definitionName);
-
-        // Check if this group is part of a model pool
         const pool = pools.find(
-          (p) => p.baseDefName === group.definitionName || p.variantDefNames.includes(group.definitionName)
+          (p) =>
+            p.baseDefName === group.definitionName ||
+            p.variantDefNames.includes(group.definitionName)
         );
-        const isPoolBase = pool?.baseDefName === group.definitionName;
-        const isPoolVariant = pool != null && pool.variantDefNames.includes(group.definitionName);
-
-        let maxCount: number;
-        let displayCount: number | undefined;
-        let minCount: number;
-
-        if (isPoolBase && pool) {
-          // Pool base: stepper shows base count; + adds to base, - removes from base
-          const variantTotal = models
-            .filter((m) => pool.variantDefNames.includes(m.definitionName))
-            .reduce((sum, m) => sum + m.count, 0);
-          displayCount = undefined; // show group.count (base count)
-          maxCount = pool.maxTotal - variantTotal;
-          minCount = Math.max(0, pool.minTotal - variantTotal);
-        } else if (isPoolVariant && pool) {
-          // Pool variant: stepper controls variant count, limited by available pool
-          const base = models.find((m) => m.definitionName === pool.baseDefName && m.isBase);
-          displayCount = undefined; // show own count
-          maxCount = Math.min(def?.max ?? 0, (base?.count ?? 0) + group.count);
-          minCount = 0;
-        } else if (group.isBase) {
-          // Non-pooled base: existing behavior
-          displayCount = models
-            .filter((m) => m.definitionName === group.definitionName)
-            .reduce((sum, m) => sum + m.count, 0);
-          maxCount = def?.max ?? group.count;
-          minCount = def?.min ?? 0;
-        } else {
-          // Non-pooled variant (wargear variant group)
-          displayCount = undefined;
-          maxCount = group.count +
-            (models.find((m) => m.definitionName === group.definitionName && m.isBase)?.count ?? 0);
-          minCount = 0;
-        }
-
+        const { maxCount, displayCount, minCount } = computeCountLimits(group, def, models, pool);
         const groupFiringConfig = firingConfig.filter((fc) => fc.groupId === group.groupId);
 
         return (
@@ -103,8 +124,8 @@ export function UnitConfigurator({
             datasheet={datasheet}
             slots={slots}
             firingConfig={groupFiringConfig}
-            interactive={isAttacker}
-            attackMode={isAttacker ? attackMode : undefined}
+            interactive={interactive}
+            attackMode={side === 'attacker' ? attackMode : undefined}
             maxCount={maxCount}
             displayCount={displayCount}
             minCount={minCount}

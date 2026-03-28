@@ -3,7 +3,6 @@ import { DetachmentPicker } from '../faction/DetachmentPicker';
 import { UnitConfigurator } from '../unit-config/UnitConfigurator';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
-import type { WargearSlot, WeaponFiringConfig } from '../../types/config';
 
 interface Props {
   side: 'attacker' | 'defender';
@@ -11,27 +10,18 @@ interface Props {
   onClose: () => void;
 }
 
-const EMPTY_SLOTS: WargearSlot[] = [];
-const EMPTY_FIRING_CONFIG: WeaponFiringConfig[] = [];
-
 export function ConfigOverlay({ side, isOpen, onClose }: Props) {
   const isAttacker = side === 'attacker';
 
-  const factionSlug = useAppStore((s) =>
-    isAttacker ? s.attacker.factionSlug : s.defender.factionSlug
-  );
-  const unitName = useAppStore((s) => (isAttacker ? s.attacker.unitName : s.defender.unitName));
-  const detachmentName = useAppStore((s) =>
-    isAttacker ? s.attacker.detachmentName : s.defender.detachmentName
-  );
+  const factionSlug = useAppStore((s) => s[side].factionSlug);
+  const unitName = useAppStore((s) => s[side].unitName);
+  const detachmentName = useAppStore((s) => s[side].detachmentName);
   const setDetachment = useAppStore((s) =>
     isAttacker ? s.setAttackerDetachment : s.setDefenderDetachment
   );
-  const models = useAppStore((s) => (isAttacker ? s.attacker.models : s.defender.models));
-  const slots = useAppStore((s) => (isAttacker ? s.attacker.slots : EMPTY_SLOTS));
-  const firingConfig = useAppStore((s) =>
-    isAttacker ? s.attacker.firingConfig : EMPTY_FIRING_CONFIG
-  );
+  const models = useAppStore((s) => s[side].models);
+  const slots = useAppStore((s) => s[side].slots);
+  const firingConfig = useAppStore((s) => s[side].firingConfig);
   const attackMode = useAppStore((s) => s.attacker.gameState.attackMode);
 
   const selectSlotOption = useAppStore((s) => s.selectSlotOption);
@@ -40,7 +30,7 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
   const setDefinitionCount = useAppStore((s) => s.setDefinitionCount);
   const setWeaponFiringCount = useAppStore((s) => s.setWeaponFiringCount);
 
-  const chapter = useAppStore((s) => (isAttacker ? s.attacker.chapter : s.defender.chapter));
+  const chapter = useAppStore((s) => s[side].chapter);
 
   const { data } = useFactionData(factionSlug);
 
@@ -76,11 +66,15 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
           firingConfig={firingConfig}
           side={side}
           attackMode={isAttacker ? attackMode : undefined}
-          onSlotSelect={isAttacker ? selectSlotOption : undefined}
-          onVariableSlotCount={isAttacker ? setVariableSlotCount : undefined}
-          onVariableSlotChange={isAttacker ? setVariableSlotAllocation : undefined}
-          onDefinitionCount={isAttacker ? setDefinitionCount : undefined}
-          onWeaponFiringCount={isAttacker ? setWeaponFiringCount : undefined}
+          onSlotSelect={(slotId, optionKey) => selectSlotOption(side, slotId, optionKey)}
+          onVariableSlotCount={(groupId, count) => setVariableSlotCount(side, groupId, count)}
+          onVariableSlotChange={(slotId, optionKey, count) =>
+            setVariableSlotAllocation(side, slotId, optionKey, count)
+          }
+          onDefinitionCount={(defName, count) => setDefinitionCount(side, defName, count)}
+          onWeaponFiringCount={(groupId, weaponName, count) =>
+            setWeaponFiringCount(side, groupId, weaponName, count)
+          }
         />
       </div>
     </Overlay>

@@ -165,3 +165,4 @@ aeldari_datasheets.json
 # BattleScribe data repo (cloned locally)
 bsdata_repo/
 .bsdata_last_build
+data/

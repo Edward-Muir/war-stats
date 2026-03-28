@@ -35,11 +35,16 @@ export function ResultsChart({ stats, iterations, label, color = 'var(--attacker
   return (
     <div className="space-y-2">
       <h4 className="text-sm font-semibold text-muted-foreground">{label}</h4>
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={200}>
         <ComposedChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="value" stroke="var(--muted-foreground)" fontSize={12} />
-          <YAxis stroke="var(--muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} />
+          <XAxis dataKey="value" stroke="var(--muted-foreground)" fontSize={11} />
+          <YAxis
+            stroke="var(--muted-foreground)"
+            fontSize={11}
+            tickFormatter={(v) => `${v}%`}
+            width={40}
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: 'var(--card)',

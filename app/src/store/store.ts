@@ -3,6 +3,7 @@ import type { FactionIndex, FactionDatasheets, FactionRules } from '../types/dat
 import { fetchFactionIndex, fetchFactionData } from '../data/loader';
 import { createAttackerSlice, type AttackerSlice } from './slices/attacker';
 import { createDefenderSlice, type DefenderSlice } from './slices/defender';
+import { createUnitConfigSlice, type UnitConfigSlice } from './slices/unit-config';
 import { createSimulationSlice, initAutoRun, type SimulationSlice } from './slices/simulation';
 import { createDefaultsSlice, type DefaultsSlice } from './slices/defaults';
 
@@ -17,7 +18,12 @@ interface DataSlice {
 
 // ─── Combined store type ─────────────────────────────────────────
 
-export type AppStore = DataSlice & AttackerSlice & DefenderSlice & SimulationSlice & DefaultsSlice;
+export type AppStore = DataSlice &
+  AttackerSlice &
+  DefenderSlice &
+  UnitConfigSlice &
+  SimulationSlice &
+  DefaultsSlice;
 
 // ─── Store creation ──────────────────────────────────────────────
 
@@ -52,6 +58,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   // Slices
   ...createAttackerSlice(...a),
   ...createDefenderSlice(...a),
+  ...createUnitConfigSlice(...a),
   ...createSimulationSlice(...a),
   ...createDefaultsSlice(...a),
 }));

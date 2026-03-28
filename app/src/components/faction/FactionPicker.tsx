@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFactionIndex } from '../../data/hooks';
 import { SUPER_FACTIONS } from '../../data/super-factions';
+import { FactionIcon } from '../shared/FactionIcon';
 import type { FactionIndexEntry } from '../../types/data';
 
 interface Props {
@@ -16,10 +17,12 @@ export function FactionPicker({ onChange, label }: Props) {
   const [activeSuperFaction, setActiveSuperFaction] = useState<string | null>(null);
 
   if (loading || !index)
-    return <div className="py-8 text-center text-sm text-muted-foreground">Loading factions...</div>;
+    return (
+      <div className="py-8 text-center text-sm text-muted-foreground">Loading factions...</div>
+    );
 
   const factionLookup = new Map<string, FactionIndexEntry>(
-    index.factions.map((f) => [f.faction.toLowerCase(), f]),
+    index.factions.map((f) => [f.faction.toLowerCase(), f])
   );
 
   // Stage 2: factions within a super-faction
@@ -53,7 +56,10 @@ export function FactionPicker({ onChange, label }: Props) {
             className="w-full justify-between h-11 px-3 text-sm"
             onClick={() => onChange(f.slug)}
           >
-            {f.faction}
+            <span className="flex items-center gap-2">
+              <FactionIcon slug={f.slug} className="h-5 w-5" />
+              {f.faction}
+            </span>
             <Badge variant="secondary" className="text-xs">
               {f.datasheet_count}
             </Badge>
@@ -66,7 +72,10 @@ export function FactionPicker({ onChange, label }: Props) {
             className="w-full justify-between h-11 px-3 text-sm"
             onClick={() => onChange(ch.factionSlug, ch.chapterKeyword)}
           >
-            {ch.name}
+            <span className="flex items-center gap-2">
+              <FactionIcon slug={ch.factionSlug} chapter={ch.chapterKeyword} className="h-5 w-5" />
+              {ch.name}
+            </span>
             {ch.unitCount != null && (
               <Badge variant="secondary" className="text-xs">
                 {ch.unitCount}
@@ -86,7 +95,7 @@ export function FactionPicker({ onChange, label }: Props) {
       </label>
       {SUPER_FACTIONS.map((sf) => {
         const factionCount = sf.factions.filter((name) =>
-          factionLookup.has(name.toLowerCase()),
+          factionLookup.has(name.toLowerCase())
         ).length;
         const count = factionCount + (sf.chapters?.length ?? 0);
         return (

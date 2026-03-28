@@ -1,149 +1,22 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Crosshair, Menu, Settings, Swords } from 'lucide-react';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
 import { GameState } from '../game-state/GameState';
 import { EffectChips } from '../game-state/EffectChips';
 import { deriveAvailableEffects } from '../../logic/effect-keys';
-import { SimulationStatus } from '../simulation/SimulationControls';
-import { ResultsChart } from '../simulation/ResultsChart';
+import { StatsPreview } from '../simulation/StatsPreview';
 import { FactionOverlay } from '../overlays/FactionOverlay';
 import { UnitOverlay } from '../overlays/UnitOverlay';
 import { ConfigOverlay } from '../overlays/ConfigOverlay';
-import { StatsOverlay } from '../overlays/StatsOverlay';
 import { MethodologyOverlay } from '../overlays/MethodologyOverlay';
 import { DefaultsOverlay } from '../overlays/DefaultsOverlay';
 import { BurgerMenu } from './BurgerMenu';
-import { filterAttackerStratagems, filterDefenderStratagems } from '../../logic/stratagems';
-import { computeGameStateRelevance } from '../../logic/game-state-relevance';
-
-function StatsPreview({
-  hasUnits,
-  simulation,
-  onOpenStats,
-}: {
-  hasUnits: boolean;
-  simulation: import('../../store/store').AppStore['simulation'];
-  onOpenStats: () => void;
-}) {
-  return (
-    <section className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-success">Stats</h2>
-      <SimulationStatus isRunning={simulation.isRunning} />
-      {!hasUnits ? (
-        <p className="text-sm text-muted-foreground">
-          Select an attacker and defender unit to see results.
-        </p>
-      ) : simulation.results ? (
-        <Card
-          className="cursor-pointer transition-all hover:border-muted-foreground hover:scale-[1.01] active:scale-[0.99]"
-          onClick={onOpenStats}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onOpenStats();
-          }}
-        >
-          <CardContent className="p-4">
-            <div className="flex gap-6 mb-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs text-muted-foreground">Damage</span>
-                <span className="text-2xl font-bold tabular-nums">
-                  {simulation.results.summary.damage.mean.toFixed(1)}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs text-muted-foreground">Models</span>
-                <span className="text-2xl font-bold tabular-nums">
-                  {simulation.results.summary.modelsKilled.mean.toFixed(1)}
-                </span>
-              </div>
-            </div>
-            <ResultsChart
-              stats={simulation.results.summary.damage}
-              iterations={simulation.results.iterations}
-              label="Damage Distribution"
-              color="var(--attacker)"
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-    </section>
-  );
-}
-
-type FactionData = {
-  datasheets: import('../../types/data').FactionDatasheets;
-  rules: import('../../types/data').FactionRules;
-};
-
-/** Filter stratagems for a given side's unit + detachment. */
-function useFilteredStratagems(
-  side: 'attacker' | 'defender',
-  factionData: FactionData | undefined,
-  unitName: string | null,
-  detachmentName: string | null,
-  chapter: string | null
-) {
-  return useMemo(() => {
-    if (!factionData || !unitName || !detachmentName) return [];
-    const detachment = factionData.rules.detachments.find((d) => d.name === detachmentName);
-    const datasheet =
-      (chapter && chapter !== 'ADEPTUS ASTARTES'
-        ? factionData.datasheets.datasheets.find(
-            (d) => d.name === unitName && d.factionKeywords.some((k) => k.toUpperCase() === chapter)
-          )
-        : undefined) ?? factionData.datasheets.datasheets.find((d) => d.name === unitName);
-    if (!detachment || !datasheet) return [];
-    return side === 'attacker'
-      ? filterAttackerStratagems(detachment, datasheet)
-      : filterDefenderStratagems(detachment, datasheet);
-  }, [side, factionData, unitName, detachmentName, chapter]);
-}
-
-/** Derive which game state toggles are relevant for the current unit/weapon selection. */
-function useGameStateRelevance(
-  attackerStratagems: import('../../types/data').Stratagem[],
-  defenderStratagems: import('../../types/data').Stratagem[],
-  attackMode: 'ranged' | 'melee',
-  attackerFactionData: FactionData | undefined,
-  attackerUnitName: string | null,
-  defenderFactionData: FactionData | undefined,
-  defenderUnitName: string | null
-) {
-  const selectedWeapons = useAppStore((s) => s.attacker.selectedWeapons);
-  return useMemo(() => {
-    const attackerDatasheet = attackerFactionData?.datasheets.datasheets.find(
-      (d) => d.name === attackerUnitName
-    );
-    const attackerKeywords = [
-      ...(attackerDatasheet?.keywords ?? []),
-      ...(attackerDatasheet?.factionKeywords ?? []),
-    ];
-    const defenderDatasheet = defenderFactionData?.datasheets.datasheets.find(
-      (d) => d.name === defenderUnitName
-    );
-    return computeGameStateRelevance(
-      selectedWeapons,
-      attackerStratagems,
-      defenderStratagems,
-      attackMode,
-      attackerKeywords,
-      defenderDatasheet?.abilities ?? null
-    );
-  }, [
-    selectedWeapons,
-    attackerStratagems,
-    defenderStratagems,
-    attackMode,
-    attackerFactionData,
-    attackerUnitName,
-    defenderFactionData,
-    defenderUnitName,
-  ]);
-}
+import { FactionIcon } from '../shared/FactionIcon';
+import { useFilteredStratagems } from '../../hooks/useFilteredStratagems';
+import { useGameStateRelevance } from '../../hooks/useGameStateRelevance';
+import { useTheme } from '../../hooks/useTheme';
 
 export function AppShell() {
   // Overlay state
@@ -153,10 +26,10 @@ export function AppShell() {
   const [defenderFactionOpen, setDefenderFactionOpen] = useState(false);
   const [defenderUnitOpen, setDefenderUnitOpen] = useState(false);
   const [defenderConfigOpen, setDefenderConfigOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // Store state
   const attackMode = useAppStore((s) => s.attacker.gameState.attackMode);
@@ -237,6 +110,15 @@ export function AppShell() {
     defenderUnitName
   );
 
+  // Shared game state props
+  const gameStateProps = {
+    attackerState,
+    defenderState,
+    relevance: gameStateRelevance,
+    onAttackerChange: setAttackerGameState,
+    onDefenderChange: setDefenderGameState,
+  };
+
   // Derive available effect chips from filtered stratagems
   const attackerAvailableEffects = useMemo(
     () => deriveAvailableEffects(attackerStratagems, attackMode),
@@ -286,10 +168,16 @@ export function AppShell() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="h-11 px-3 text-sm shrink-0"
+              size="icon"
+              className="h-11 w-11 shrink-0"
               onClick={() => setAttackerFactionOpen(true)}
+              aria-label={attackerFactionName || 'Select faction'}
             >
-              {attackerFactionName || 'Faction'}
+              {attackerFactionSlug ? (
+                <FactionIcon slug={attackerFactionSlug} chapter={attackerChapter} />
+              ) : (
+                <span className="text-xs">F</span>
+              )}
             </Button>
             <Button
               variant="outline"
@@ -316,6 +204,7 @@ export function AppShell() {
             activeEffects={attackerActiveEffects}
             onToggle={toggleAttackerEffect}
           />
+          <GameState side="attacker" {...gameStateProps} />
         </section>
 
         {/* Defender section */}
@@ -324,10 +213,16 @@ export function AppShell() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="h-11 px-3 text-sm shrink-0"
+              size="icon"
+              className="h-11 w-11 shrink-0"
               onClick={() => setDefenderFactionOpen(true)}
+              aria-label={defenderFactionName || 'Select faction'}
             >
-              {defenderFactionName || 'Faction'}
+              {defenderFactionSlug ? (
+                <FactionIcon slug={defenderFactionSlug} chapter={defenderChapter} />
+              ) : (
+                <span className="text-xs">F</span>
+              )}
             </Button>
             <Button
               variant="outline"
@@ -354,25 +249,11 @@ export function AppShell() {
             activeEffects={defenderActiveEffects}
             onToggle={toggleDefenderEffect}
           />
+          <GameState side="defender" {...gameStateProps} />
         </section>
 
-        {/* Game state chips */}
-        <section>
-          <GameState
-            attackerState={attackerState}
-            defenderState={defenderState}
-            relevance={gameStateRelevance}
-            onAttackerChange={setAttackerGameState}
-            onDefenderChange={setDefenderGameState}
-          />
-        </section>
-
-        {/* Stats preview */}
-        <StatsPreview
-          hasUnits={!!attackerUnitName && !!defenderUnitName}
-          simulation={simulation}
-          onOpenStats={() => setStatsOpen(true)}
-        />
+        {/* Stats inline */}
+        <StatsPreview hasUnits={!!attackerUnitName && !!defenderUnitName} simulation={simulation} />
       </main>
 
       {/* Overlays */}
@@ -406,7 +287,6 @@ export function AppShell() {
         isOpen={defenderConfigOpen}
         onClose={() => setDefenderConfigOpen(false)}
       />
-      <StatsOverlay isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
       <BurgerMenu
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -418,6 +298,8 @@ export function AppShell() {
           setMenuOpen(false);
           setDefaultsOpen(true);
         }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <MethodologyOverlay isOpen={methodologyOpen} onClose={() => setMethodologyOpen(false)} />
       <DefaultsOverlay isOpen={defaultsOpen} onClose={() => setDefaultsOpen(false)} />

@@ -1,11 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, SlidersHorizontal, X } from 'lucide-react';
+import { BookOpen, Moon, SlidersHorizontal, Sun, X } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onOpenMethodology: () => void;
   onOpenDefaults: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const menuItemClass = `
@@ -18,7 +20,14 @@ const menuItemClass = `
 
 const iconClass = 'w-5 h-5 text-muted-foreground flex-shrink-0';
 
-export function BurgerMenu({ isOpen, onClose, onOpenMethodology, onOpenDefaults }: Props) {
+export function BurgerMenu({
+  isOpen,
+  onClose,
+  onOpenMethodology,
+  onOpenDefaults,
+  theme,
+  onToggleTheme,
+}: Props) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -60,6 +69,11 @@ export function BurgerMenu({ isOpen, onClose, onOpenMethodology, onOpenDefaults 
 
             {/* Menu Items */}
             <div className="py-2 flex-1">
+              <button onClick={onToggleTheme} className={menuItemClass}>
+                {theme === 'dark' ? <Sun className={iconClass} /> : <Moon className={iconClass} />}
+                <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              </button>
+
               <button onClick={onOpenMethodology} className={menuItemClass}>
                 <BookOpen className={iconClass} />
                 <span>Methodology</span>
