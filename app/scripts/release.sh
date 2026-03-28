@@ -5,23 +5,24 @@
 
 set -e
 
-# Ensure we're in the app/ directory (where package.json lives)
-cd "$(dirname "$0")/.."
+# Resolve the app/ directory (where package.json lives)
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Default to auto-detect from commits if no argument provided
 RELEASE_TYPE=${1:-""}
 
 echo "🚀 Starting release process..."
 
-# Ensure working directory is clean (except for generated files)
-if [[ -n $(git status --porcelain | grep -v 'version.ts\|version.json\|CHANGELOG.md') ]]; then
+# Ensure working directory is clean (check from repo root)
+if [[ -n $(git -C "$APP_DIR" status --porcelain | grep -v 'version.ts\|version.json\|CHANGELOG.md') ]]; then
   echo "❌ Error: Working directory has uncommitted changes"
   echo "   Please commit or stash changes before releasing"
-  git status --short
+  git -C "$APP_DIR" status --short
   exit 1
 fi
 
-# Run the release
+# Run the release (from app/ where package.json lives)
+cd "$APP_DIR"
 if [[ -n "$RELEASE_TYPE" ]]; then
   echo "📦 Bumping $RELEASE_TYPE version..."
   npm run release:$RELEASE_TYPE
