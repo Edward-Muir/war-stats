@@ -9,6 +9,7 @@ import type {
   ActiveStratagem,
 } from '../../types/config';
 import { DEFAULT_ATTACKER_STATE } from '../../types/config';
+import { loadStoredDefaults } from '../../utils/local-storage';
 import {
   buildWargearSlots,
   buildDefaultModels,
@@ -113,16 +114,18 @@ export interface AttackerSlice {
   resetAttacker: () => void;
 }
 
+const _stored = loadStoredDefaults();
+
 const initialAttacker: AttackerSlice['attacker'] = {
-  factionSlug: 'space-marines',
-  chapter: null,
+  factionSlug: _stored?.attackerFactionSlug ?? 'space-marines',
+  chapter: _stored?.attackerChapter ?? null,
   detachmentName: null,
   unitName: null,
   slots: [],
   models: [],
   firingConfig: [],
   selectedWeapons: [],
-  gameState: { ...DEFAULT_ATTACKER_STATE },
+  gameState: { ...DEFAULT_ATTACKER_STATE, ...(_stored?.attackerGameState ?? {}) },
   activeStratagems: [],
 };
 

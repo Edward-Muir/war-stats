@@ -3,6 +3,7 @@ import type { Stratagem } from '../../types/data';
 import type { DefenderGameState, ConfiguredModel, ActiveStratagem } from '../../types/config';
 import { DEFAULT_DEFENDER_STATE } from '../../types/config';
 import { buildWargearSlots, buildDefaultModels } from '../../logic/wargear-slots';
+import { loadStoredDefaults } from '../../utils/local-storage';
 import type { AppStore } from '../store';
 
 export interface DefenderSlice {
@@ -24,13 +25,15 @@ export interface DefenderSlice {
   resetDefender: () => void;
 }
 
+const _stored = loadStoredDefaults();
+
 const initialDefender: DefenderSlice['defender'] = {
-  factionSlug: 'space-marines',
-  chapter: null,
+  factionSlug: _stored?.defenderFactionSlug ?? 'space-marines',
+  chapter: _stored?.defenderChapter ?? null,
   detachmentName: null,
   unitName: null,
   models: [],
-  gameState: { ...DEFAULT_DEFENDER_STATE },
+  gameState: { ...DEFAULT_DEFENDER_STATE, ...(_stored?.defenderGameState ?? {}) },
   activeStratagems: [],
 };
 

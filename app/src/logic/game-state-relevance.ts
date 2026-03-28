@@ -1,6 +1,7 @@
 import type { SelectedWeapon, GameStateRelevance } from '../types/config';
 import type { Stratagem, AbilityBlock } from '../types/data';
 import { parseWeaponKeywords } from '../engine/keywords';
+import type { ConditionType } from './stratagem-effects';
 import { resolveStratagemEffect } from './stratagem-effects';
 
 /** Which weapon keyword families are present in the selected weapons. */
@@ -43,6 +44,16 @@ function anyStratagemGrantsLance(stratagems: Stratagem[]): boolean {
   return false;
 }
 
+/** Check if any available stratagem has a conditional that gates on the given condition type. */
+function anyStratagemHasCondition(stratagems: Stratagem[], condType: ConditionType): boolean {
+  for (const strat of stratagems) {
+    const effect = resolveStratagemEffect(strat);
+    if (!effect.isParsed) continue;
+    if (effect.conditionals.some((c) => c.condition.type === condType)) return true;
+  }
+  return false;
+}
+
 /**
  * Determine which game state toggles are relevant given the current
  * selected weapons, available stratagems, attack mode, and unit data.
@@ -50,6 +61,7 @@ function anyStratagemGrantsLance(stratagems: Stratagem[]): boolean {
 export function computeGameStateRelevance(
   selectedWeapons: SelectedWeapon[],
   availableAttackerStratagems: Stratagem[],
+  availableDefenderStratagems: Stratagem[],
   attackMode: 'ranged' | 'melee',
   attackerKeywords: string[],
   defenderAbilities: AbilityBlock | null
@@ -66,13 +78,16 @@ export function computeGameStateRelevance(
   const hasLanceFromStrat = anyStratagemGrantsLance(availableAttackerStratagems);
 
   return {
-    remainedStationary: wk.heavy,
+    remainedStationary:
+      wk.heavy || anyStratagemHasCondition(availableAttackerStratagems, 'remainedStationary'),
     advanced: wk.assault,
     charged: attackMode === 'melee' && (wk.lance || hasLanceFromStrat),
     targetInHalfRange: isRanged && wk.rapidFireOrMelta,
     engagementRange: isRanged && wk.pistol && !isMonsterOrVehicle,
     benefitOfCover: isRanged,
-    stealthAll: isRanged ? (defenderHasStealth ? 'locked' : true) : false,
-    closestTarget: true,
+    stealthAll: isRanged && defenderHasStealth ? 'locked' : false,
+    closestTarget:
+      anyStratagemHasCondition(availableAttackerStratagems, 'closestTarget') ||
+      anyStratagemHasCondition(availableDefenderStratagems, 'closestTarget'),
   };
 }

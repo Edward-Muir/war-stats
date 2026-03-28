@@ -4,6 +4,7 @@ import { fetchFactionIndex, fetchFactionData } from '../data/loader';
 import { createAttackerSlice, type AttackerSlice } from './slices/attacker';
 import { createDefenderSlice, type DefenderSlice } from './slices/defender';
 import { createSimulationSlice, initAutoRun, type SimulationSlice } from './slices/simulation';
+import { createDefaultsSlice, type DefaultsSlice } from './slices/defaults';
 
 // ─── Data cache slice ────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ interface DataSlice {
 
 // ─── Combined store type ─────────────────────────────────────────
 
-export type AppStore = DataSlice & AttackerSlice & DefenderSlice & SimulationSlice;
+export type AppStore = DataSlice & AttackerSlice & DefenderSlice & SimulationSlice & DefaultsSlice;
 
 // ─── Store creation ──────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...createAttackerSlice(...a),
   ...createDefenderSlice(...a),
   ...createSimulationSlice(...a),
+  ...createDefaultsSlice(...a),
 }));
 
 // Start auto-run subscription

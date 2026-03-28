@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { SimulationResults } from '../../types/simulation';
 import type { AppStore } from '../store';
+import { loadStoredDefaults } from '../../utils/local-storage';
 
 export interface SimulationSlice {
   simulation: {
@@ -13,12 +14,14 @@ export interface SimulationSlice {
   clearResults: () => void;
 }
 
+const _stored = loadStoredDefaults();
+
 export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSlice> = (
   set,
   get
 ) => ({
   simulation: {
-    iterations: 10000,
+    iterations: _stored?.simulationIterations ?? 10000,
     isRunning: false,
     results: null,
     worker: null,
