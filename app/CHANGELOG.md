@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.1.2 (2026-03-28)
+
+
+### Features
+
+* Change to battlescribe data base ([610a259](https://github.com/Edward-Muir/war-stats/commit/610a2596e41fd13d768e3ab2217d3d0ebb038caa))
+* Improving wargear choices, centralise menus ([ee3637f](https://github.com/Edward-Muir/war-stats/commit/ee3637fc1add1f32937c1b7397cf56ac642c6d7a))
+* Initial commit ([2b21aab](https://github.com/Edward-Muir/war-stats/commit/2b21aabbda70fc436cf14ead8347b5e17c50529e))
+
+
+### Bug Fixes
+
+* Fix wargear selection bug ([6d20dfa](https://github.com/Edward-Muir/war-stats/commit/6d20dfa8043a9be284dc5758322d7205f33ff1c4))
+* Fixing many bugs... ([63f4405](https://github.com/Edward-Muir/war-stats/commit/63f4405b17fbeacd40321e3c4a2adefefcfb0eff))
+* Fixing more bugs ([df2bc1a](https://github.com/Edward-Muir/war-stats/commit/df2bc1ac1d3dd52336056157a536e878dc059f46))
+
 ## 0.1.1 (2026-03-27)
 
 
