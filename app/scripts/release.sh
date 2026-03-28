@@ -5,6 +5,9 @@
 
 set -e
 
+# Ensure we're in the app/ directory (where package.json lives)
+cd "$(dirname "$0")/.."
+
 # Default to auto-detect from commits if no argument provided
 RELEASE_TYPE=${1:-""}
 
