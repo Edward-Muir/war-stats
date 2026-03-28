@@ -36,7 +36,9 @@ function scanWeaponKeywords(selectedWeapons: SelectedWeapon[]): WeaponKeywordFla
 function anyStratagemGrantsLance(stratagems: Stratagem[]): boolean {
   for (const strat of stratagems) {
     const effect = resolveStratagemEffect(strat);
-    if (effect.isParsed && effect.modifiers.lance) return true;
+    if (!effect.isParsed) continue;
+    if (effect.modifiers.lance) return true;
+    if (effect.conditionals.some((c) => c.modifiers.lance)) return true;
   }
   return false;
 }

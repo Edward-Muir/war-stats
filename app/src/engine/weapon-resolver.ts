@@ -1,6 +1,6 @@
-import type { ResolvedModifiers, ResolvedWeaponGroup, DefenderProfile } from "../types/simulation";
-import { rollDiceExpr } from "./dice";
-import { resolveAttack } from "./attack";
+import type { ResolvedModifiers, ResolvedWeaponGroup, DefenderProfile } from '../types/simulation';
+import { rollDiceExpr } from './dice';
+import { resolveAttack } from './attack';
 
 /** Result of resolving all attacks from a single weapon group. */
 export interface WeaponGroupResult {
@@ -20,7 +20,7 @@ export interface WeaponGroupResult {
 export function resolveWeaponGroup(
   weapon: ResolvedWeaponGroup,
   modifiers: ResolvedModifiers,
-  defender: DefenderProfile,
+  defender: DefenderProfile
 ): WeaponGroupResult {
   const result: WeaponGroupResult = {
     totalHits: 0,
@@ -47,11 +47,11 @@ export function resolveWeaponGroup(
 
     const atk = resolveAttack(
       weapon.skill,
-      weapon.strength,
+      weapon.strength + modifiers.strengthBonus,
       weapon.damage,
       modifiers,
       defender,
-      isAutoHit,
+      isAutoHit
     );
 
     if (atk.hit) result.totalHits++;

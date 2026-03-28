@@ -1,4 +1,7 @@
 import type { Stratagem } from '../types/data';
+import type { ParsedWeaponKeywords } from '../types/simulation';
+import { parseStratagemEffectText } from './stratagem-parser';
+import { STRATAGEM_EFFECTS } from './stratagem-effect-table';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -19,417 +22,57 @@ export interface StratagemModifier {
   devastatingWounds?: boolean;
   ignoresCover?: boolean;
   lance?: boolean;
+  bonusAttacks?: number;
+  strengthBonus?: number;
+  damageBonus?: number;
   // Defender defensive
   feelNoPain?: number;
   damageReduction?: number;
-  saveModifier?: number; // worsen AP by this amount (e.g. 1)
+  saveModifier?: number;
   invulnerableSave?: number;
+}
+
+// ─── Conditions ─────────────────────────────────────────────────
+
+export type ConditionType =
+  | 'remainedStationary'
+  | 'charged'
+  | 'advanced'
+  | 'closestTarget'
+  | 'targetInHalfRange'
+  | 'weaponHasKeyword'
+  | 'belowHalfStrength'
+  | 'battleShocked';
+
+export interface StratagemCondition {
+  type: ConditionType;
+  weaponKeyword?: keyof ParsedWeaponKeywords;
+}
+
+export interface ConditionalModifier {
+  condition: StratagemCondition;
+  modifiers: StratagemModifier;
+}
+
+/** Simple modifier OR base + conditionals for game-state-dependent effects. */
+export type StratagemEffectEntry =
+  | StratagemModifier
+  | { base: StratagemModifier; conditionals: ConditionalModifier[] };
+
+function isConditionalEntry(
+  entry: StratagemEffectEntry
+): entry is { base: StratagemModifier; conditionals: ConditionalModifier[] } {
+  return 'conditionals' in entry;
 }
 
 /** A resolved stratagem effect ready for the engine. */
 export interface ParsedStratagemEffect {
   combatType: CombatType;
   modifiers: StratagemModifier;
+  conditionals: ConditionalModifier[];
   isParsed: boolean;
+  confidence: 'manual' | 'high' | 'low';
 }
-
-// ─── Reusable Templates ─────────────────────────────────────────
-
-const PLUS_1_HIT: StratagemModifier = { hitModifier: 1 };
-const MINUS_1_HIT: StratagemModifier = { hitModifier: -1 };
-const PLUS_1_WOUND: StratagemModifier = { woundModifier: 1 };
-const MINUS_1_WOUND: StratagemModifier = { woundModifier: -1 };
-const AP_IMPROVE_1: StratagemModifier = { apImprovement: 1 };
-const AP_WORSEN_1: StratagemModifier = { saveModifier: 1 };
-const REROLL_HITS: StratagemModifier = { rerollHits: 'all' };
-const REROLL_HITS_ONES: StratagemModifier = { rerollHits: 'ones' };
-const REROLL_WOUNDS: StratagemModifier = { rerollWounds: 'all' };
-const REROLL_WOUNDS_ONES: StratagemModifier = { rerollWounds: 'ones' };
-const LETHAL_HITS: StratagemModifier = { lethalHits: true };
-const SUSTAINED_1: StratagemModifier = { sustainedHits: 1 };
-const DEVASTATING_WOUNDS: StratagemModifier = { devastatingWounds: true };
-const IGNORES_COVER: StratagemModifier = { ignoresCover: true };
-const LANCE: StratagemModifier = { lance: true };
-const CRIT_HIT_5: StratagemModifier = { critHitOn: 5 };
-const FNP_4: StratagemModifier = { feelNoPain: 4 };
-const FNP_5: StratagemModifier = { feelNoPain: 5 };
-const FNP_6: StratagemModifier = { feelNoPain: 6 };
-const MINUS_1_DAMAGE: StratagemModifier = { damageReduction: 1 };
-const INVULN_4: StratagemModifier = { invulnerableSave: 4 };
-const INVULN_5: StratagemModifier = { invulnerableSave: 5 };
-
-/** Merge multiple modifier templates into one. */
-function merge(...mods: StratagemModifier[]): StratagemModifier {
-  const result: StratagemModifier = {};
-  for (const m of mods) {
-    Object.assign(result, m);
-  }
-  return result;
-}
-
-// ─── Name-to-Effect Mapping Table ───────────────────────────────
-// Keyed by stratagem name. Many names are shared across detachments/factions
-// with the same effect, so name-based lookup covers most cases.
-
-const STRATAGEM_EFFECTS: Record<string, StratagemModifier> = {
-  // --- Reroll Hits + Wounds ---
-  "ANATHEMA BLADEMASTERY": merge(REROLL_HITS, REROLL_WOUNDS),
-  "CHOSEN FOR GLORY": merge(REROLL_HITS, REROLL_WOUNDS),
-  "CLEAR AND SECURE": merge(REROLL_HITS, REROLL_WOUNDS),
-  "CRACKDOWN": merge(REROLL_HITS, REROLL_WOUNDS),
-  "CREEPING BLIGHT": merge(REROLL_HITS, REROLL_WOUNDS),
-  "DEVASTATING SORCERY": merge(REROLL_HITS, REROLL_WOUNDS),
-  "EARNING OF A NAME": merge(REROLL_HITS, REROLL_WOUNDS),
-  "MACHINE SPIRIT RESURGENT": merge(REROLL_HITS, REROLL_WOUNDS),
-  "MALIGNANCE MAGNIFIED": merge(REROLL_HITS, REROLL_WOUNDS),
-  "PERSISTENT ASSAILANTS": merge(REROLL_HITS, REROLL_WOUNDS),
-  "PICK THEM OFF": merge(REROLL_HITS, REROLL_WOUNDS),
-  "PITILESS HUNTERS": merge(REROLL_HITS, REROLL_WOUNDS),
-  "PRIDEFUL SUPERIORITY": merge(REROLL_HITS, REROLL_WOUNDS),
-  "RIGHTEOUS VENGEANCE": merge(REROLL_HITS, REROLL_WOUNDS),
-  "RUINOUS RAID": merge(REROLL_HITS, REROLL_WOUNDS),
-  "TARGETING ALGORITHMS": merge(REROLL_HITS, REROLL_WOUNDS),
-  "TITANIC DUEL": merge(REROLL_HITS, REROLL_WOUNDS),
-
-  // --- Reroll Hits ---
-  "ANIMUS CURSE": REROLL_HITS,
-  "BLOODY VENGEANCE": REROLL_HITS,
-  "CLUTCHING CORRUPTION": REROLL_HITS,
-  "DRAWN TO DESPAIR": REROLL_HITS,
-  "FLARE BURST": REROLL_HITS,
-  "GRIM REAPERS": REROLL_HITS,
-  "MARTIAL PERFECTION": REROLL_HITS,
-  "PINPOINT COUNTER-OFFENSIVE": REROLL_HITS,
-  "PRE-CALIBRATED PURGE SOLUTION": REROLL_HITS,
-  "PREY ON THE WEAK": REROLL_HITS,
-  "RAMPAGING MONSTROSITIES": REROLL_HITS,
-  "RANGER TACTICS": REROLL_HITS,
-  "STEADFAST SUPERIORITY": REROLL_HITS,
-
-  // --- Reroll Hits (ones) ---
-  "ILLUMINATED PRIORITY": REROLL_HITS_ONES,
-  "SYMBIOTIC DESTRUCTION": REROLL_WOUNDS_ONES,
-
-  // --- Reroll Hits + Ones combo (use 'all' since it's stronger) ---
-  "ARMED TO DATEEF": REROLL_HITS,
-  "DAKKA! DAKKA! DAKKA!": REROLL_HITS,
-  "EMISSARIES OF YNNEAD": REROLL_HITS,
-  "FAIL NOT THE BLOOD GOD": REROLL_HITS,
-  "PROTOCOL OF THE CONQUERING TYRANT": REROLL_HITS,
-  "VENGEANCE FOR THE MARTYR!": REROLL_HITS,
-
-  // --- Reroll Wounds ---
-  "COMBAT DEBARKATION": REROLL_WOUNDS,
-  "DARTING STRIKES": REROLL_WOUNDS,
-  "DEATH FROM ON HIGH": REROLL_WOUNDS,
-  "EXPOSED FLAWS": REROLL_WOUNDS,
-  "NO THREAT TOO GREAT": REROLL_WOUNDS,
-  "PROFANE ZEAL": REROLL_WOUNDS,
-  "SPECIMENS FOR THE SPIDER": REROLL_WOUNDS,
-  "WARDING SALVOES": REROLL_WOUNDS,
-
-  // --- Reroll Wounds (ones) ---
-  "CODEX DISCIPLINE": merge(REROLL_HITS_ONES, REROLL_WOUNDS_ONES),
-  "HUNTR'S MARK": merge(REROLL_HITS_ONES, REROLL_WOUNDS_ONES),
-  "IRRESISTIBLE WILL": merge(REROLL_HITS_ONES, REROLL_WOUNDS_ONES),
-
-  // --- Reroll Wounds + Ones combo ---
-  "COMPETITIVE STREAK": REROLL_WOUNDS,
-  "CYBERSTIMM INFUSION": REROLL_WOUNDS,
-  "MULTISENSORY SCANNING": REROLL_WOUNDS,
-  "ORKS IS STILL ORKS": REROLL_WOUNDS,
-
-  // --- +1 to Hit ---
-  "ANCIENT FURY": PLUS_1_HIT,
-  "FEVER VISIONS": PLUS_1_HIT,
-  "HUGE SHOW-OFFS": PLUS_1_HIT,
-  "ONSLAUGHT OF FIRE": PLUS_1_HIT,
-  "TAKEN ALIVE": PLUS_1_HIT,
-  "VIRTUE OF COURAGE": PLUS_1_HIT,
-
-  // --- +1 to Hit + Wound ---
-  "CURSE OF THE CRYPTEK": merge(PLUS_1_HIT, PLUS_1_WOUND),
-  "HEROES OF THE CHAPTER": merge(PLUS_1_HIT, PLUS_1_WOUND),
-  "INSTINCTIVE SPITE": merge(PLUS_1_HIT, PLUS_1_WOUND),
-  "SURPRISE ASSAULT": merge(PLUS_1_HIT, PLUS_1_WOUND),
-  "THE SPOOR OF FRAILTY": merge(PLUS_1_HIT, PLUS_1_WOUND),
-
-  // --- +1 to Wound ---
-  "A TEMPTING TRAP": PLUS_1_WOUND,
-  "ABOMINUS-CLASS TARGETS": PLUS_1_WOUND,
-  "ARCHAGONISTS": PLUS_1_WOUND,
-  "AUTO-ORACULAR RETRIEVAL": PLUS_1_WOUND,
-  "BIGGER SHELLS FOR BIGGER GITZ": PLUS_1_WOUND,
-  "BROODGUARD IMPULSE": PLUS_1_WOUND,
-  "CHANT OF THE REMORSELESS FIST": PLUS_1_WOUND,
-  "COORDINATED TRAP": PLUS_1_WOUND,
-  "CRUCIBLE OF BATTLE": PLUS_1_WOUND,
-  "EMPEROR'S EXECUTIONERS": PLUS_1_WOUND,
-  "ENSORCELLED INFUSION": PLUS_1_WOUND,
-  "FULL THROTTLE!": PLUS_1_WOUND,
-  "GENE-TWISTED MUSCLE": PLUS_1_WOUND,
-  "ISOLATE AND DESTROY": PLUS_1_WOUND,
-  "MERCILESS RECLAMATION": PLUS_1_WOUND,
-  "NO PREY TOO BIG": PLUS_1_WOUND,
-  "RITES OF FIRE": PLUS_1_WOUND,
-  "SLAYER OF CHAMPIONS": PLUS_1_WOUND,
-
-  // --- AP Improvement ---
-  "A TRAP WELL LAID": AP_IMPROVE_1,
-  "BINHARIC OFFENCE": AP_IMPROVE_1,
-  "BOARDING BLADES": AP_IMPROVE_1,
-  "CRAZED FOCUS": AP_IMPROVE_1,
-  "CRUEL BLADESMAN": AP_IMPROVE_1,
-  "CONQUERORS WITHOUT MERCY": AP_IMPROVE_1,
-  "DEPTHLESS CRUELTY": AP_IMPROVE_1,
-  "DESPERATE PLEDGE": AP_IMPROVE_1,
-  "DIVINE GUIDANCE": AP_IMPROVE_1,
-  "EXEMPLAR'S WISDOM": AP_IMPROVE_1,
-  "EXPERIMENTAL MODIFICATIONS": AP_IMPROVE_1,
-  "FIELDS OF FIRE": AP_IMPROVE_1,
-  "FOCUSED FIRE": AP_IMPROVE_1,
-  "FOCUSED FIREPOWER": AP_IMPROVE_1,
-  "FURIOUS CANNONADE": AP_IMPROVE_1,
-  "HACK AND SLASH": AP_IMPROVE_1,
-  "HONOUR OF THE HOLD": AP_IMPROVE_1,
-  "KRAKEN ROUNDS": AP_IMPROVE_1,
-  "POINT-BLANK AMBUSH": AP_IMPROVE_1,
-  "PROTOCOL OF THE HUNGRY VOID": AP_IMPROVE_1,
-  "PSYBOLT AMMUNITION": AP_IMPROVE_1,
-  "PUNISHMENT OF THE PROSECUTORS": AP_IMPROVE_1,
-  "SPESHUL SHELLS": AP_IMPROVE_1,
-  "TALONS SUNK DEEP": AP_IMPROVE_1,
-  "THUNDERSTOMP": AP_IMPROVE_1,
-
-  // --- AP Improvement combos ---
-  "CHANNELLED WRATH": merge(AP_IMPROVE_1, LANCE),
-  "DEADLY DEBUT": merge(AP_IMPROVE_1, LETHAL_HITS),
-  "DRAUGHT OF TERROR": merge(AP_IMPROVE_1, REROLL_WOUNDS),
-  "FATE INESCAPABLE": merge(AP_IMPROVE_1, IGNORES_COVER),
-  "HONOUR THE CHAPTER": merge(AP_IMPROVE_1, LANCE),
-  "PSY-CHAFF VOLLEY": merge(MINUS_1_HIT, AP_IMPROVE_1),
-  "STORM OF FIRE": merge(AP_IMPROVE_1, IGNORES_COVER),
-
-  // --- AP Worsen (defender) ---
-  "ARMOUR OF ABHORRENCE": AP_WORSEN_1,
-  "ARMOUR OF CONTEMPT": AP_WORSEN_1,
-  "CONNOISSEURS OF PAIN": AP_WORSEN_1,
-  "CONTEMPTUOUS DISREGARD": AP_WORSEN_1,
-  "FOCUSED FEAR": AP_WORSEN_1,
-  "HELLFORGED CONSTRUCTION": AP_WORSEN_1,
-  "HEX-MARKED ARMOUR": AP_WORSEN_1,
-  "HULKING BRUTES": AP_WORSEN_1,
-  "LET DUTY BE YOUR SHIELD": AP_WORSEN_1,
-  "LOOT ON THE MOVE": AP_WORSEN_1,
-  "REINFORCED HIVE NODE": AP_WORSEN_1,
-  "SHIELD OF AVERSION": AP_WORSEN_1,
-  "TRUESILVER ARMOUR": AP_WORSEN_1,
-  "UNFAILINGLY OBDURATE": AP_WORSEN_1,
-  "VOID HARDENED": AP_WORSEN_1,
-
-  // --- -1 to Hit (defender) ---
-  "BIO-HORROR REVELATION": MINUS_1_HIT,
-  "BLINDING RADIANCE": MINUS_1_HIT,
-  "CAPRICIOUS REACTIONS": MINUS_1_HIT,
-  "CLOUD OF FLIES": MINUS_1_HIT,
-  "DEFT PARRY": MINUS_1_HIT,
-  "ELECTROGHEIST VISITATIONS": MINUS_1_HIT,
-  "FIERY SHIELD": MINUS_1_HIT,
-  "FIGHTING SHADOWS": MINUS_1_HIT,
-  "FOREWARNED EVASION": MINUS_1_HIT,
-  "GRAVITRONIC PULSE": MINUS_1_HIT,
-  "IMAGE OF DEATH": MINUS_1_HIT,
-  "LIGHTNING-FAST REACTIONS": MINUS_1_HIT,
-  "MASKS OF DEATH": MINUS_1_HIT,
-  "MONSTROUS VISAGES": MINUS_1_HIT,
-  "OVERWHELMING EXCESS": MINUS_1_HIT,
-  "PREVENTATIVE PURGE": MINUS_1_HIT,
-  "SHOCK BOMBARDMENT": MINUS_1_HIT,
-  "STUN GRENADES": MINUS_1_HIT,
-  "SULPHUROUS VEIL": MINUS_1_HIT,
-  "TEEMING MASSES": MINUS_1_HIT,
-  "TRIBUTE OF EMPHATIC VENERATION": MINUS_1_HIT,
-  "UNCANNY REACTIONS": MINUS_1_HIT,
-  "UNWAVERING SENTINELS": MINUS_1_HIT,
-  "VOID GHOSTS": MINUS_1_HIT,
-
-  // --- -1 to Hit combos ---
-  "COURAGEOUS DIVERSION": merge(MINUS_1_HIT, FNP_6),
-  "FOREWARNED": merge(MINUS_1_HIT, MINUS_1_WOUND),
-  "RIDE HARD, RIDE FAST": merge(MINUS_1_HIT, MINUS_1_WOUND),
-  "SAVAGE ROAR": merge(MINUS_1_HIT, MINUS_1_WOUND),
-
-  // --- -1 to Wound (defender) ---
-  "ANGELS DEFIANT": MINUS_1_WOUND,
-  "BALEFUL HALO": MINUS_1_WOUND,
-  "BLADES OF THE VIGILATORS": MINUS_1_WOUND,
-  "COMBAT STIMMS": MINUS_1_WOUND,
-  "CONTEMPT FOR DEATH": MINUS_1_WOUND,
-  "DAEMONIC RESISTANCE": MINUS_1_WOUND,
-  "FLAWLESS CONSTRUCTION": MINUS_1_WOUND,
-  "LANCEBREAKER": MINUS_1_WOUND,
-  "MACABRE RESILIENCE": MINUS_1_WOUND,
-  "REACTIVE IMPACT DAMPENERS": MINUS_1_WOUND,
-  "SHIELD NODES": MINUS_1_WOUND,
-  "SHINING RESOLVE": MINUS_1_WOUND,
-  "UNWAVERING PHALANX": MINUS_1_WOUND,
-  "UNYIELDING FORMS": MINUS_1_WOUND,
-  "WEAVEFIELD FLARE": MINUS_1_WOUND,
-  "WEAVEWËRKE BUTTRESS": MINUS_1_WOUND,
-  "'ARD AS NAILS": MINUS_1_WOUND,
-
-  // --- Crit Hit 5+ ---
-  "ADRENAL SURGE": CRIT_HIT_5,
-  "APPOINTED HOUR": CRIT_HIT_5,
-  "BLESSINGS OF FILTH": CRIT_HIT_5,
-  "DRIVE THEM OUT!": CRIT_HIT_5,
-  "ENSLAVED ARTIFICE": CRIT_HIT_5,
-  "HUNGRY FOR COMBAT": CRIT_HIT_5,
-  "PASSION OF THE PENITENT": CRIT_HIT_5,
-  "PITILESS CANNONADE": CRIT_HIT_5,
-  "SEEPING VIRULENCE": CRIT_HIT_5,
-  "TAILORED TOXINS": CRIT_HIT_5,
-  "UNBRIDLED CARNAGE": CRIT_HIT_5,
-
-  // --- Crit Hit 5+ combos ---
-  "BATTLE DRILL RECALL": merge(CRIT_HIT_5, SUSTAINED_1),
-  "BLITZING FIREPOWER": merge(CRIT_HIT_5, SUSTAINED_1),
-  "MERCY IS WEAKNESS": merge(CRIT_HIT_5, SUSTAINED_1),
-  "SWARMING MASSES": merge(CRIT_HIT_5, SUSTAINED_1),
-  "SECURE BIOMASS": merge(CRIT_HIT_5, LETHAL_HITS),
-
-  // --- Lethal Hits ---
-  "ARBITRARY EXECUTION": LETHAL_HITS,
-  "AVENGE THE MASTERS!": LETHAL_HITS,
-  "BLITZA FIRE": LETHAL_HITS,
-  "CLOSE-RANGE SHOOT-OUT": LETHAL_HITS,
-  "DARK HARVEST": LETHAL_HITS,
-  "DISPENSE JUSTICE": LETHAL_HITS,
-  "LETHAL DOSAGE": LETHAL_HITS,
-  "RIGHTEOUS BLOWS": LETHAL_HITS,
-  "VENGEANCE OF THE MACHINE CULT": LETHAL_HITS,
-  "VOW OF RETRIBUTION": LETHAL_HITS,
-
-  // --- Lethal Hits combos ---
-  "ARCHEOTECH MUNITIONS": merge(LETHAL_HITS, SUSTAINED_1),
-  "FIGHT PROPPA": merge(LETHAL_HITS, SUSTAINED_1),
-  "LIGHT OF VENGEANCE": merge(LETHAL_HITS, SUSTAINED_1),
-  "THREAT ASSESSMENT ANALYSER": merge(LETHAL_HITS, SUSTAINED_1),
-  "WITCH HUNTERS": merge(LETHAL_HITS, SUSTAINED_1),
-  "PRESCIENT PRECISION": merge(LETHAL_HITS, IGNORES_COVER),
-  "SOULSIGHT": merge(LETHAL_HITS, IGNORES_COVER),
-  "PRETERNATURAL PRECISION": merge(LETHAL_HITS, SUSTAINED_1, IGNORES_COVER),
-
-  // --- Sustained Hits ---
-  "ANCESTRAL SENTENCE": SUSTAINED_1,
-  "BLITZING FUSILLADE": SUSTAINED_1,
-  "DAKKASTORM": SUSTAINED_1,
-  "DEVOTED DUELLISTS": SUSTAINED_1,
-  "DRAG IT DOWN": SUSTAINED_1,
-  "FURY OF THE HEARTH": SUSTAINED_1,
-  "METHODICAL MURDER": SUSTAINED_1,
-  "PURGATION PATTERN": SUSTAINED_1,
-  "SKYBORNE ANNIHILATION": SUSTAINED_1,
-  "THE ARRO'KON PROTOCOL": SUSTAINED_1,
-  "VIOLENT EXCESS": SUSTAINED_1,
-
-  // --- Sustained Hits combos ---
-  "ENFILADING EMERGENCE": merge(SUSTAINED_1, IGNORES_COVER),
-  "VIOLENT ACQUISITION": merge(SUSTAINED_1, IGNORES_COVER, LANCE),
-
-  // --- Devastating Wounds ---
-  "BLACK CRUSADE": DEVASTATING_WOUNDS,
-  "BLADES FROM BEYOND": DEVASTATING_WOUNDS,
-  "CLEANSING FLAMES": DEVASTATING_WOUNDS,
-  "CYNOSURE OF ERADICATION": DEVASTATING_WOUNDS,
-  "DISTILLERS OF FEAR": DEVASTATING_WOUNDS,
-  "IMMOLATION PROTOCOLS": DEVASTATING_WOUNDS,
-  "RITES OF EXORCISM": DEVASTATING_WOUNDS,
-  "TRUESILVER CHANNELLING": DEVASTATING_WOUNDS,
-
-  // --- Ignores Cover ---
-  "AUTO-DIVINATORY TARGETING": IGNORES_COVER,
-  "COORDINATE TO ENGAGE": IGNORES_COVER,
-  "DRAGONFIRE ROUNDS": IGNORES_COVER,
-  "ENCROACHING DARKNESS": IGNORES_COVER,
-  "LET THE GALAXY BURN": IGNORES_COVER,
-  "LONG, UNCONTROLLED BURSTS": IGNORES_COVER,
-  "PAN-SPECTRAL VISUALISER": IGNORES_COVER,
-  "PUNISHMENT INESCAPABLE": IGNORES_COVER,
-  "SOLAR PULSE": IGNORES_COVER,
-  "SOULSEEKERS": IGNORES_COVER,
-  "SWARM-GUIDED SALVOES": IGNORES_COVER,
-  "WARP VISION": IGNORES_COVER,
-
-  // --- Lance ---
-  "DAEMONIC FURY": LANCE,
-  "FAITH AND FURY": LANCE,
-  "RUN THEM THROUGH!": LANCE,
-  "SHOCK ASSAULT": LANCE,
-
-  // --- Feel No Pain ---
-  "ABLATIVE CARAPACE": FNP_5,
-  "BIONIC ENDURANCE": FNP_5,
-  "INVIOLATE JURISDICTION": FNP_5,
-  "LAYERED WARDS": FNP_5,
-  "OMNISSIAH'S GRACE": FNP_5,
-  "SHIELD OF FAITH": FNP_5,
-  "STEADFAST DETERMINATION": FNP_5,
-  "WARDING CHANT": FNP_5,
-  "YRIEL'S EXAMPLE": FNP_5,
-  "ARCANE GENETIC ALCHEMY": FNP_4,
-  "DUTY AND DEATH": FNP_4,
-  "EMPYRIC SEVERANCE": FNP_4,
-  "INCANTATION OF THE IRON SOUL": FNP_4,
-  "PSYCHIC DOMINION": FNP_4,
-  "PURITY OF SUFFERING": FNP_4,
-  "THE EMPEROR'S AUSPICE": FNP_4,
-  "TRUESILVER WILL": FNP_4,
-  "BALEFUL BLESSING": FNP_5,
-  "BENEVOLENCE OF THE OMNISSIAH": FNP_6,
-  "COURAGEOUS STAND": FNP_6,
-  "DISDAIN FOR THE WEAK": FNP_6,
-  "IN THE SHADOW OF BRASS IDOLS": FNP_6,
-  "PROTECTION OF THE DARK PRINCE": FNP_6,
-  "RAPID REGENERATION": FNP_6,
-  "STIMM INJECTORS": FNP_6,
-  "BLESSING OF BURNING BLOOD": INVULN_5,
-
-  // --- Damage Reduction ---
-  "ABLATIVE PLATING": MINUS_1_DAMAGE,
-  "COUNTERFIRE DEFENCE SYSTEMS": MINUS_1_DAMAGE,
-  "DEVOTED CREW": MINUS_1_DAMAGE,
-  "DISGUSTINGLY RESILIENT": MINUS_1_DAMAGE,
-  "EXTRA GUBBINZ": MINUS_1_DAMAGE,
-  "FRENZIED RESILIENCE": MINUS_1_DAMAGE,
-  "IMPLACABLE GUARDIANS": MINUS_1_DAMAGE,
-  "INSENSIBLE TO PAIN": MINUS_1_DAMAGE,
-  "LEGENDARY FORTITUDE": MINUS_1_DAMAGE,
-  "NANOASSEMBLY PROTOCOLS": MINUS_1_DAMAGE,
-  "RUNES OF DISDAIN": MINUS_1_DAMAGE,
-  "WRAITHBONE ARMOUR": MINUS_1_DAMAGE,
-
-  // --- Invulnerable Save ---
-  "ACROBATIC DISPLAY": INVULN_5,
-  "BRËKKEKNOTS": INVULN_4,
-  "BULWARK IMPERATIVE": INVULN_4,
-  "DEFT MANOEUVRING": INVULN_4,
-  "DIABOLIC BULWARK": INVULN_4,
-  "DISPLACER FIELD": INVULN_4,
-  "HYPERADRENAL REFLEXES": INVULN_4,
-  "LUMINESCENT BLESSING": INVULN_4,
-  "MICROSCARAB SWARM": INVULN_5,
-  "NIGHT SHIELD": INVULN_4,
-  "QUANTUM DEFLECTION": INVULN_4,
-  "QUANTUM FLARE-SHIELD": INVULN_4,
-  "ROTATE ION SHIELDS": INVULN_4,
-  "SPEEDIEST FREEKS": INVULN_5,
-  "SPIRALLING EVASION": INVULN_4,
-  "WARPED VICISSITUDE": INVULN_4,
-
-  // --- Sustained Hits 2 ---
-  "TITANIC BOMBARDMENT": { sustainedHits: 2 },
-};
 
 // ─── Combat Type Classifier ────────────────────────────────────
 
@@ -453,14 +96,62 @@ export function classifyCombatType(when: string, effect: string): CombatType {
   return 'any';
 }
 
+// ─── Unicode Normalization ──────────────────────────────────────
+
+function normalizeName(name: string): string {
+  return name
+    .replace(/\u2011/g, '-')
+    .replace(/\u2013/g, '-')
+    .replace(/\u2018|\u2019/g, "'")
+    .replace(/\u201C|\u201D/g, '"');
+}
+
 // ─── Lookup ────────────────────────────────────────────────────
 
 export function resolveStratagemEffect(stratagem: Stratagem): ParsedStratagemEffect {
-  const modifiers = STRATAGEM_EFFECTS[stratagem.name];
   const combatType = classifyCombatType(stratagem.when, stratagem.effect);
+
+  // 1. Manual table (highest confidence)
+  const entry =
+    STRATAGEM_EFFECTS[stratagem.name] ?? STRATAGEM_EFFECTS[normalizeName(stratagem.name)];
+
+  if (entry !== undefined) {
+    if (isConditionalEntry(entry)) {
+      return {
+        combatType,
+        modifiers: entry.base,
+        conditionals: entry.conditionals,
+        isParsed: true,
+        confidence: 'manual',
+      };
+    }
+    return {
+      combatType,
+      modifiers: entry,
+      conditionals: [],
+      isParsed: true,
+      confidence: 'manual',
+    };
+  }
+
+  // 2. Auto-parser fallback
+  const parsed = parseStratagemEffectText(stratagem.effect);
+  if (parsed) {
+    return {
+      combatType,
+      modifiers: parsed.modifiers,
+      conditionals: [],
+      isParsed: true,
+      confidence: parsed.confidence,
+    };
+  }
+
+  // 3. No mapping found
   return {
     combatType,
-    modifiers: modifiers ?? {},
-    isParsed: modifiers !== undefined,
+    modifiers: {},
+    conditionals: [],
+    isParsed: false,
+    confidence: 'low',
   };
 }

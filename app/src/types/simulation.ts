@@ -1,28 +1,28 @@
-import type { AttackerGameState, DefenderGameState } from "./config";
-import type { ParsedStratagemEffect } from "../logic/stratagem-effects";
+import type { AttackerGameState, DefenderGameState } from './config';
+import type { ParsedStratagemEffect } from '../logic/stratagem-effects';
 
 // ─── Dice Expressions ────────────────────────────────────────────
 
 /** Parsed dice expression: either a fixed value or NdS+M. */
 export type DiceExpr =
-  | { type: "fixed"; value: number }
-  | { type: "dice"; count: number; sides: number; modifier: number };
+  | { type: 'fixed'; value: number }
+  | { type: 'dice'; count: number; sides: number; modifier: number };
 
 // ─── Parsed Weapon Keywords ──────────────────────────────────────
 
 export interface ParsedWeaponKeywords {
-  sustainedHits: number;       // 0 if not present
+  sustainedHits: number; // 0 if not present
   lethalHits: boolean;
   devastatingWounds: boolean;
-  antiKeyword: string | null;  // e.g. "VEHICLE"
-  antiThreshold: number;       // e.g. 4 for ANTI-VEHICLE 4+, 0 if not present
-  rapidFire: number;           // 0 if not present
+  antiKeyword: string | null; // e.g. "VEHICLE"
+  antiThreshold: number; // e.g. 4 for ANTI-VEHICLE 4+, 0 if not present
+  rapidFire: number; // 0 if not present
   blast: boolean;
   torrent: boolean;
   heavy: boolean;
   assault: boolean;
   lance: boolean;
-  melta: number;               // 0 if not present
+  melta: number; // 0 if not present
   twinLinked: boolean;
   ignoresCover: boolean;
   indirectFire: boolean;
@@ -59,12 +59,12 @@ export const EMPTY_KEYWORDS: ParsedWeaponKeywords = {
 /** A weapon group ready for simulation — all values parsed from strings. */
 export interface ResolvedWeaponGroup {
   name: string;
-  type: "ranged" | "melee";
-  rangeInches: number;         // 0 for melee
+  type: 'ranged' | 'melee';
+  rangeInches: number; // 0 for melee
   attacks: DiceExpr;
-  skill: number;               // BS/WS as number (0 = auto-hit / torrent)
+  skill: number; // BS/WS as number (0 = auto-hit / torrent)
   strength: number;
-  ap: number;                  // Positive number (e.g. 2 for AP -2)
+  ap: number; // Positive number (e.g. 2 for AP -2)
   damage: DiceExpr;
   keywords: ParsedWeaponKeywords;
   firingModels: number;
@@ -73,38 +73,39 @@ export interface ResolvedWeaponGroup {
 
 // ─── Resolved Modifiers ──────────────────────────────────────────
 
-export type RerollPolicy = "none" | "ones" | "all";
+export type RerollPolicy = 'none' | 'ones' | 'all';
 
 export interface ResolvedModifiers {
-  hitModifier: number;        // Capped [-1, +1]
-  woundModifier: number;      // Capped [-1, +1]
-  apValue: number;            // Positive (e.g. 2 for AP -2)
-  coverBonus: number;         // 0 or 1
+  hitModifier: number; // Capped [-1, +1]
+  woundModifier: number; // Capped [-1, +1]
+  apValue: number; // Positive (e.g. 2 for AP -2)
+  coverBonus: number; // 0 or 1
   rerollHits: RerollPolicy;
   rerollWounds: RerollPolicy;
-  attacksBonus: number;       // From rapid fire, blast
-  damageBonus: number;        // From melta
-  critHitOn: number;          // Default 6
-  critWoundOn: number;        // Default 6, ANTI-X can lower
-  autoHit: boolean;           // TORRENT
+  attacksBonus: number; // From rapid fire, blast, stratagems
+  damageBonus: number; // From melta, stratagems
+  strengthBonus: number; // From stratagems (+N to Strength)
+  critHitOn: number; // Default 6
+  critWoundOn: number; // Default 6, ANTI-X can lower
+  autoHit: boolean; // TORRENT
   lethalHits: boolean;
   sustainedHits: number;
   devastatingWounds: boolean;
-  damageReduction: number;       // From stratagems (e.g. -1 damage)
+  damageReduction: number; // From stratagems (e.g. -1 damage)
   feelNoPainOverride: number | null; // From stratagems (e.g. FNP 5+)
-  invulnOverride: number | null;     // From stratagems (e.g. 4+ invuln)
+  invulnOverride: number | null; // From stratagems (e.g. 4+ invuln)
 }
 
 // ─── Defender Profile ────────────────────────────────────────────
 
 export interface DefenderProfile {
   toughness: number;
-  save: number;                // e.g. 3 for Sv 3+
+  save: number; // e.g. 3 for Sv 3+
   invulnerableSave: number | null; // e.g. 4, or null
-  wounds: number;              // Per model
+  wounds: number; // Per model
   modelCount: number;
-  feelNoPain: number | null;   // e.g. 5 for FNP 5+, or null
-  keywords: string[];          // For ANTI-X matching
+  feelNoPain: number | null; // e.g. 5 for FNP 5+, or null
+  keywords: string[]; // For ANTI-X matching
 }
 
 // ─── Simulation Input ────────────────────────────────────────────

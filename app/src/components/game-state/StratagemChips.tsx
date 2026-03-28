@@ -30,7 +30,7 @@ export function StratagemChips({
     <div className="flex flex-wrap gap-2 mt-2">
       {filtered.map((strat) => {
         const isActive = activeStratagems.some((a) => a.stratagem.name === strat.name);
-        const { isParsed } = resolveStratagemEffect(strat);
+        const { isParsed, confidence } = resolveStratagemEffect(strat);
         return (
           <Toggle
             key={strat.name}
@@ -42,6 +42,7 @@ export function StratagemChips({
               isActive && side === 'attacker' && 'border-attacker bg-attacker/15 text-attacker',
               isActive && side === 'defender' && 'border-defender bg-defender/15 text-defender',
               !isParsed && 'opacity-50 border-dashed',
+              isParsed && confidence === 'high' && 'border-dotted'
             )}
           >
             {strat.name} {strat.cp_cost}CP
