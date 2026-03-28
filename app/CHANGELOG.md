@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.4](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.3...warstats-v0.1.4) (2026-03-28)
+
+
+### Features
+
+* Add menu with defaults ([492a2af](https://github.com/Edward-Muir/war-stats/commit/492a2af5301f52731e5645d4c11fb66109df6e8b))
+* Full strat support ([67b1052](https://github.com/Edward-Muir/war-stats/commit/67b1052f7d46bdd562f67b862b86945a4fce0c7a))
+
 ## [0.1.3](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.2...warstats-v0.1.3) (2026-03-28)
 
 
