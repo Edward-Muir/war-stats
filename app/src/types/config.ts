@@ -72,6 +72,8 @@ export interface AttackerGameState {
   advanced: boolean;
   charged: boolean;
   targetInHalfRange: boolean;
+  engagementRange: boolean;
+  pistolMode: 'pistols_only' | 'non_pistols_only' | null;
 }
 
 export interface DefenderGameState {
@@ -87,6 +89,8 @@ export const DEFAULT_ATTACKER_STATE: AttackerGameState = {
   advanced: false,
   charged: false,
   targetInHalfRange: false,
+  engagementRange: false,
+  pistolMode: null,
 };
 
 export const DEFAULT_DEFENDER_STATE: DefenderGameState = {

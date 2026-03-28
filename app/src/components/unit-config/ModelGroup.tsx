@@ -25,6 +25,8 @@ interface Props {
   interactive: boolean;
   attackMode?: 'ranged' | 'melee';
   maxCount: number;
+  displayCount?: number;
+  minCount?: number;
   onCountChange?: (count: number) => void;
   onWeaponCountChange?: (weaponName: string, count: number) => void;
   onSlotSelect?: (slotId: string, optionKey: string | null) => void;
@@ -40,6 +42,8 @@ export function ModelGroup({
   interactive,
   attackMode,
   maxCount,
+  displayCount,
+  minCount,
   onCountChange,
   onWeaponCountChange,
   onSlotSelect,
@@ -95,13 +99,13 @@ export function ModelGroup({
 
           {isFixedSingleModel && group.isBase ? (
             <span className="text-sm font-semibold text-muted-foreground tabular-nums">
-              {group.count}
+              {displayCount ?? group.count}
             </span>
           ) : interactive && onCountChange ? (
-            <CountStepper value={group.count} min={0} max={maxCount} onChange={onCountChange} />
+            <CountStepper value={displayCount ?? group.count} min={minCount ?? 0} max={maxCount} onChange={onCountChange} />
           ) : (
             <span className="text-sm font-semibold text-muted-foreground tabular-nums">
-              {group.count}
+              {displayCount ?? group.count}
             </span>
           )}
 

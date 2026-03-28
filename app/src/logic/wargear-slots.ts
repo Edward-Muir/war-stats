@@ -8,6 +8,58 @@ import type {
   WeaponFiringConfig,
   SelectedWeapon,
 } from '../types/config';
+import { filterWeaponsByPistolMode } from './pistol-restrictions';
+
+// ─── Model Pools ───────────────────────────────────────────────
+
+/**
+ * A pool of model definitions that share a count space.
+ * Variant models redistribute from the base model's count.
+ */
+export interface ModelPool {
+  baseDefName: string;        // The definition with min > 0
+  variantDefNames: string[];  // Definitions with min = 0
+  minTotal: number;           // base.min (pool floor)
+  maxTotal: number;           // base.max (pool ceiling)
+}
+
+/**
+ * Detect model pools by grouping definitions with identical stats.
+ * A pool forms when a stat group has exactly one def with min > 0 (base)
+ * and one or more defs with min = 0 (variants).
+ */
+export function buildModelPools(datasheet: UnitDatasheet): ModelPool[] {
+  const statKey = (m: V2ModelDefinition) =>
+    `${m.stats.M}|${m.stats.T}|${m.stats.Sv}|${m.stats.W}|${m.stats.Ld}|${m.stats.OC}`;
+
+  const groups = new Map<string, V2ModelDefinition[]>();
+  for (const model of datasheet.models) {
+    const key = statKey(model);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(model);
+  }
+
+  const pools: ModelPool[] = [];
+  for (const defs of groups.values()) {
+    if (defs.length < 2) continue;
+
+    // Find candidates: exactly one base (min > 0, not fixed single like sergeants)
+    const bases = defs.filter((d) => d.min > 0 && !(d.min === d.max && d.max === 1));
+    const variants = defs.filter((d) => d.min === 0);
+
+    if (bases.length !== 1 || variants.length === 0) continue;
+
+    const base = bases[0];
+    pools.push({
+      baseDefName: base.name,
+      variantDefNames: variants.map((v) => v.name),
+      minTotal: base.min,
+      maxTotal: base.max,
+    });
+  }
+
+  return pools;
+}
 
 // ─── Slot Construction ──────────────────────────────────────────
 
@@ -351,6 +403,8 @@ export function setVariableCount(
 
 /**
  * Set the total model count for a definition, adjusting the base group.
+ * Pool-aware: variant definitions redistribute from the pool base;
+ * base definitions control the pool total.
  */
 export function setDefinitionTotal(
   models: ConfiguredModel[],
@@ -361,6 +415,21 @@ export function setDefinitionTotal(
   const model = datasheet.models.find((d) => d.name === definitionName);
   if (!model) return models;
 
+  // Check if this definition is part of a model pool
+  const pools = buildModelPools(datasheet);
+  const pool = pools.find(
+    (p) => p.baseDefName === definitionName || p.variantDefNames.includes(definitionName)
+  );
+
+  if (pool && pool.variantDefNames.includes(definitionName)) {
+    return setPoolVariantCount(models, definitionName, newTotal, model, pool);
+  }
+
+  if (pool && pool.baseDefName === definitionName) {
+    return setPoolTotal(models, newTotal, pool);
+  }
+
+  // Non-pooled: original behavior
   const clamped = Math.max(model.min, Math.min(model.max, newTotal));
   const currentTotal = models
     .filter((m) => m.definitionName === definitionName)
@@ -376,6 +445,65 @@ export function setDefinitionTotal(
 
   return models.map((m) =>
     m.groupId === base.groupId ? { ...m, count: newBaseCount } : m
+  );
+}
+
+/**
+ * Set a pool variant's count, redistributing from the pool base.
+ * Pool total stays the same.
+ */
+function setPoolVariantCount(
+  models: ConfiguredModel[],
+  variantDefName: string,
+  newCount: number,
+  variantDef: V2ModelDefinition,
+  pool: ModelPool
+): ConfiguredModel[] {
+  const base = models.find((m) => m.definitionName === pool.baseDefName && m.isBase);
+  const variant = models.find((m) => m.definitionName === variantDefName && m.isBase);
+  if (!base || !variant) return models;
+
+  // Clamp: can't exceed variant's max OR available in pool (base + current variant)
+  const available = base.count + variant.count;
+  const clamped = Math.max(variantDef.min, Math.min(newCount, variantDef.max, available));
+  const delta = clamped - variant.count;
+  if (delta === 0) return models;
+
+  const newBaseCount = base.count - delta;
+  if (newBaseCount < 0) return models;
+
+  return models.map((m) => {
+    if (m.definitionName === variantDefName && m.isBase) return { ...m, count: clamped };
+    if (m.definitionName === pool.baseDefName && m.isBase) return { ...m, count: newBaseCount };
+    return m;
+  });
+}
+
+/**
+ * Set the base model count within a pool.
+ * Variants stay unchanged; pool total = base + variants.
+ * Clamps so that pool total stays within [minTotal, maxTotal].
+ */
+function setPoolTotal(
+  models: ConfiguredModel[],
+  newBaseCount: number,
+  pool: ModelPool
+): ConfiguredModel[] {
+  const base = models.find((m) => m.definitionName === pool.baseDefName && m.isBase);
+  if (!base) return models;
+
+  const variantTotal = models
+    .filter((m) => pool.variantDefNames.includes(m.definitionName))
+    .reduce((sum, m) => sum + m.count, 0);
+
+  // Clamp: base >= 0 AND pool total (base + variants) in [minTotal, maxTotal]
+  const minBase = Math.max(0, pool.minTotal - variantTotal);
+  const maxBase = pool.maxTotal - variantTotal;
+  const clamped = Math.max(minBase, Math.min(maxBase, newBaseCount));
+  if (clamped === base.count) return models;
+
+  return models.map((m) =>
+    m.definitionName === pool.baseDefName && m.isBase ? { ...m, count: clamped } : m
   );
 }
 
@@ -407,7 +535,20 @@ export function getGroupWeapons(
 }
 
 /**
+ * Extract the base name from a profile weapon name.
+ * Profile weapons have the format "➤ Base Name - profile".
+ * Returns null for non-profile weapons.
+ */
+export function getProfileBaseName(weaponName: string): string | null {
+  if (!weaponName.startsWith('➤')) return null;
+  const dashIdx = weaponName.lastIndexOf(' - ');
+  if (dashIdx < 0) return null;
+  return weaponName.slice(0, dashIdx).trim();
+}
+
+/**
  * Build default firing config: all models fire all their weapons.
+ * For profile weapons (➤), only the first profile in each group fires by default.
  */
 export function buildDefaultFiringConfig(
   models: ConfiguredModel[],
@@ -423,11 +564,25 @@ export function buildDefaultFiringConfig(
     if (!model) continue;
 
     const weapons = getGroupWeapons(datasheet, model, group.slotSelections, slots);
+    const seenProfiles = new Set<string>();
+
     for (const weapon of weapons) {
+      const profileBase = getProfileBaseName(weapon.name);
+      let firingCount = group.count;
+
+      if (profileBase !== null) {
+        if (seenProfiles.has(profileBase)) {
+          // Second+ profile in group: default to 0
+          firingCount = 0;
+        } else {
+          seenProfiles.add(profileBase);
+        }
+      }
+
       config.push({
         groupId: group.groupId,
         weaponName: weapon.name,
-        firingModelCount: group.count,
+        firingModelCount: firingCount,
       });
     }
   }
@@ -437,14 +592,15 @@ export function buildDefaultFiringConfig(
 
 /**
  * Derive flat SelectedWeapon[] from model groups and firing config.
- * Aggregates across groups, filters by attack mode.
+ * Aggregates across groups, filters by attack mode and pistol mode.
  */
 export function deriveSelectedWeapons(
   models: ConfiguredModel[],
   firingConfig: WeaponFiringConfig[],
   slots: WargearSlot[],
   datasheet: UnitDatasheet,
-  attackMode: 'ranged' | 'melee'
+  attackMode: 'ranged' | 'melee',
+  pistolMode: 'pistols_only' | 'non_pistols_only' | null = null
 ): SelectedWeapon[] {
   const aggregated = new Map<string, { weapon: RawWeapon; totalCount: number }>();
 
@@ -456,7 +612,12 @@ export function deriveSelectedWeapons(
     );
     if (!model) continue;
 
-    const weapons = getGroupWeapons(datasheet, model, group.slotSelections, slots);
+    let weapons = getGroupWeapons(datasheet, model, group.slotSelections, slots);
+
+    // Apply pistol mode filter for ranged weapons
+    if (attackMode === 'ranged' && pistolMode !== null) {
+      weapons = filterWeaponsByPistolMode(weapons, pistolMode);
+    }
 
     for (const weapon of weapons) {
       if (weapon.type !== attackMode) continue;

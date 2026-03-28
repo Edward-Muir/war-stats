@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Stratagem } from '../../types/data';
+import type { Stratagem, UnitDatasheet } from '../../types/data';
 import type {
   AttackerGameState,
   ConfiguredModel,
@@ -17,8 +17,72 @@ import {
   applySlotSelection,
   setVariableCount,
   setDefinitionTotal,
+  getProfileBaseName,
 } from '../../logic/wargear-slots';
 import type { AppStore } from '../store';
+
+/**
+ * Update firing configs after model group counts change.
+ * If a weapon's firing count matched the old group count ("all models fire"),
+ * auto-scale to the new group count. Otherwise just clamp down.
+ *
+ * When a group goes from 0 to N, rebuild its firing config from scratch
+ * (to respect profile weapon defaults).
+ */
+function updateFiringConfigForNewCounts(
+  oldFC: WeaponFiringConfig[],
+  oldModels: ConfiguredModel[],
+  newModels: ConfiguredModel[],
+  slots: WargearSlot[],
+  datasheet: UnitDatasheet
+): WeaponFiringConfig[] {
+  // Find groups that went from 0 to N — need full rebuild for profile weapon handling
+  const activatedGroupIds = new Set<string>();
+  for (const newGroup of newModels) {
+    if (newGroup.count === 0) continue;
+    const oldGroup = oldModels.find((m) => m.groupId === newGroup.groupId);
+    if (oldGroup && oldGroup.count === 0) {
+      activatedGroupIds.add(newGroup.groupId);
+    }
+  }
+
+  if (activatedGroupIds.size > 0) {
+    // Rebuild firing config for activated groups, keep existing for others
+    const rebuiltForActivated = buildDefaultFiringConfig(
+      newModels.filter((m) => activatedGroupIds.has(m.groupId)),
+      slots,
+      datasheet
+    );
+    const rebuiltMap = new Map(
+      rebuiltForActivated.map((fc) => [`${fc.groupId}::${fc.weaponName}`, fc])
+    );
+
+    return oldFC.map((fc) => {
+      if (activatedGroupIds.has(fc.groupId)) {
+        return rebuiltMap.get(`${fc.groupId}::${fc.weaponName}`) ?? fc;
+      }
+      const oldGroup = oldModels.find((m) => m.groupId === fc.groupId);
+      const newGroup = newModels.find((m) => m.groupId === fc.groupId);
+      if (!newGroup) return fc;
+      if (!oldGroup) return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+      if (fc.firingModelCount === oldGroup.count) {
+        return { ...fc, firingModelCount: newGroup.count };
+      }
+      return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+    });
+  }
+
+  return oldFC.map((fc) => {
+    const oldGroup = oldModels.find((m) => m.groupId === fc.groupId);
+    const newGroup = newModels.find((m) => m.groupId === fc.groupId);
+    if (!newGroup) return fc;
+    if (!oldGroup) return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+    if (fc.firingModelCount === oldGroup.count) {
+      return { ...fc, firingModelCount: newGroup.count };
+    }
+    return { ...fc, firingModelCount: Math.min(fc.firingModelCount, newGroup.count) };
+  });
+}
 
 export interface AttackerSlice {
   attacker: {
@@ -105,12 +169,30 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
     const slots = buildWargearSlots(datasheet);
     const models = buildDefaultModels(datasheet, slots);
     const firingConfig = buildDefaultFiringConfig(models, slots, datasheet);
+
+    // Derive pistolMode from engagementRange + unit keywords
+    let pistolMode: 'pistols_only' | 'non_pistols_only' | null = null;
+    if (state.attacker.gameState.engagementRange) {
+      const allKeywords = [
+        ...datasheet.keywords.map(k => k.toUpperCase()),
+        ...datasheet.factionKeywords.map(k => k.toUpperCase()),
+      ];
+      const isMonsterOrVehicle = allKeywords.includes('MONSTER') || allKeywords.includes('VEHICLE');
+      pistolMode = isMonsterOrVehicle ? null : 'pistols_only';
+    }
+
+    const gameState: AttackerGameState = {
+      ...state.attacker.gameState,
+      pistolMode,
+    };
+
     const selectedWeapons = deriveSelectedWeapons(
       models,
       firingConfig,
       slots,
       datasheet,
-      state.attacker.gameState.attackMode
+      gameState.attackMode,
+      pistolMode
     );
 
     set({
@@ -121,6 +203,7 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         models,
         firingConfig,
         selectedWeapons,
+        gameState,
         activeStratagems: [],
       },
     });
@@ -140,7 +223,8 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         firingConfig,
         slots,
         datasheet,
-        gameState.attackMode
+        gameState.attackMode,
+        gameState.pistolMode
       );
 
       return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
@@ -155,18 +239,14 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       if (!datasheet) return state;
 
       const models = setVariableCount(oldModels, groupId, count, datasheet, slots);
-      // Clamp firing configs to new counts
-      const firingConfig = oldFC.map((fc) => {
-        const group = models.find((m) => m.groupId === fc.groupId);
-        if (!group) return fc;
-        return { ...fc, firingModelCount: Math.min(fc.firingModelCount, group.count) };
-      });
+      const firingConfig = updateFiringConfigForNewCounts(oldFC, oldModels, models, slots, datasheet);
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,
         slots,
         datasheet,
-        gameState.attackMode
+        gameState.attackMode,
+        gameState.pistolMode
       );
 
       return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
@@ -211,7 +291,8 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         firingConfig,
         slots,
         datasheet,
-        gameState.attackMode
+        gameState.attackMode,
+        gameState.pistolMode
       );
 
       return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
@@ -226,17 +307,14 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       if (!datasheet) return state;
 
       const models = setDefinitionTotal(oldModels, definitionName, count, datasheet);
-      const firingConfig = oldFC.map((fc) => {
-        const group = models.find((m) => m.groupId === fc.groupId);
-        if (!group) return fc;
-        return { ...fc, firingModelCount: Math.min(fc.firingModelCount, group.count) };
-      });
+      const firingConfig = updateFiringConfigForNewCounts(oldFC, oldModels, models, slots, datasheet);
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,
         slots,
         datasheet,
-        gameState.attackMode
+        gameState.attackMode,
+        gameState.pistolMode
       );
 
       return { attacker: { ...state.attacker, models, firingConfig, selectedWeapons } };
@@ -252,17 +330,28 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       const group = models.find((m) => m.groupId === groupId);
       const clamped = Math.max(0, Math.min(count, group?.count ?? 0));
 
-      const firingConfig = state.attacker.firingConfig.map((fc) =>
-        fc.groupId === groupId && fc.weaponName === weaponName
-          ? { ...fc, firingModelCount: clamped }
-          : fc
-      );
+      // For profile weapons (➤), enforce mutual exclusion: selecting one deselects siblings
+      const profileBase = getProfileBaseName(weaponName);
+      const firingConfig = state.attacker.firingConfig.map((fc) => {
+        if (fc.groupId === groupId && fc.weaponName === weaponName) {
+          return { ...fc, firingModelCount: clamped };
+        }
+        // Deselect sibling profiles when activating a profile weapon
+        if (profileBase && clamped > 0 && fc.groupId === groupId) {
+          const siblingBase = getProfileBaseName(fc.weaponName);
+          if (siblingBase === profileBase && fc.weaponName !== weaponName) {
+            return { ...fc, firingModelCount: 0 };
+          }
+        }
+        return fc;
+      });
       const selectedWeapons = deriveSelectedWeapons(
         models,
         firingConfig,
         slots,
         datasheet,
-        gameState.attackMode
+        gameState.attackMode,
+        gameState.pistolMode
       );
 
       return { attacker: { ...state.attacker, firingConfig, selectedWeapons } };
@@ -280,7 +369,21 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         }
       }
 
+      // Derive pistolMode from engagementRange
       const { factionSlug, unitName, slots, models, firingConfig } = state.attacker;
+      if (newGameState.engagementRange && factionSlug && unitName) {
+        const datasheet = findDatasheet(state, factionSlug, unitName);
+        if (datasheet) {
+          const allKeywords = [
+            ...datasheet.keywords.map(k => k.toUpperCase()),
+            ...datasheet.factionKeywords.map(k => k.toUpperCase()),
+          ];
+          const isMonsterOrVehicle = allKeywords.includes('MONSTER') || allKeywords.includes('VEHICLE');
+          newGameState.pistolMode = isMonsterOrVehicle ? null : 'pistols_only';
+        }
+      } else {
+        newGameState.pistolMode = null;
+      }
       let selectedWeapons = state.attacker.selectedWeapons;
 
       if (factionSlug && unitName) {
@@ -291,7 +394,8 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
             firingConfig,
             slots,
             datasheet,
-            newGameState.attackMode
+            newGameState.attackMode,
+            newGameState.pistolMode
           );
         }
       }

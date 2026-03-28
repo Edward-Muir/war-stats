@@ -113,6 +113,7 @@ export function AppShell() {
     return filterDefenderStratagems(detachment, datasheet);
   }, [defenderFactionData, defenderUnitName, defenderDetachmentName, defenderChapter]);
 
+
   return (
     <div className="mx-auto max-w-[600px] min-h-dvh flex flex-col bg-background">
       {/* Header */}

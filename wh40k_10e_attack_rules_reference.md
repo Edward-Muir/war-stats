@@ -194,6 +194,7 @@ These are keyword abilities found in a weapon's profile. They modify how the att
 - When such a unit shoots, it can **only** resolve attacks using its Pistols, and can **only target** enemy units it is within Engagement Range of.
 - A Pistol can target an enemy unit even if other friendly units are within Engagement Range of that enemy.
 - A model equipped with Pistols (unless it is a Monster or Vehicle) must choose: shoot with Pistols **or** all other ranged weapons — **not both**.
+- **Simulation Implementation:** The pistol OR/XOR restriction is enforced. Non-Monster/Vehicle units with both pistols and other ranged weapons default to firing non-pistol weapons. Users can toggle to pistols-only mode via the UI control.
 
 ### TORRENT
 **[TORRENT]**
