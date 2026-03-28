@@ -31,6 +31,14 @@ const INVULN_5: StratagemModifier = { invulnerableSave: 5 };
 const BONUS_ATTACKS_1: StratagemModifier = { bonusAttacks: 1 };
 const STRENGTH_BONUS_1: StratagemModifier = { strengthBonus: 1 };
 const DAMAGE_BONUS_1: StratagemModifier = { damageBonus: 1 };
+const GRANTS_STEALTH: StratagemModifier = { grantsStealth: true };
+const GRANTS_COVER: StratagemModifier = { grantsBenefitOfCover: true };
+const IGNORE_HIT_PENALTIES: StratagemModifier = { ignoreHitPenalties: true };
+const IGNORE_ALL_PENALTIES: StratagemModifier = {
+  ignoreHitPenalties: true,
+  ignoreWoundPenalties: true,
+};
+const REROLL_SAVES_ONES: StratagemModifier = { rerollSaves: 'ones' };
 
 function merge(...mods: StratagemModifier[]): StratagemModifier {
   const result: StratagemModifier = {};
@@ -405,4 +413,61 @@ export const STRATAGEM_EFFECTS: Record<string, StratagemEffectEntry> = {
     {},
     { condition: { type: 'closestTarget' }, modifiers: PLUS_1_WOUND }
   ),
+  // ─── New Simulatable Entries ─────────────────────────────────────
+  // --- Strength + AP combos ---
+  'STRIKE FROM THE SHADOWS': merge(PLUS_1_HIT, AP_IMPROVE_1),
+  'CLOSE-QUARTERS BARRAGE': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
+  'CLOSE-QUARTERS EXCRUCIATION': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
+  'FIRING HOT': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
+  'MAKING A POINT': merge(PLUS_1_HIT, AP_IMPROVE_1),
+  'MOULDED MUSCULATURE': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
+  'TALONS INTERLOCKED': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
+  // --- Rerolls ---
+  'POINT-BLANK PURGATION': REROLL_WOUNDS,
+  // --- Hit/wound modifiers ---
+  'EMP GRENADES': MINUS_1_HIT,
+  'PRIMED AND READIED': CRIT_HIT_5,
+  'FRENZIED DEVOTION': merge(BONUS_ATTACKS_1, PLUS_1_HIT),
+  // --- FNP ---
+  'ARMOURED AEGIS': FNP_4,
+  // --- Stat bonuses ---
+  'EYE OF THE GODS': merge(BONUS_ATTACKS_1, STRENGTH_BONUS_1, DAMAGE_BONUS_1),
+  'INFERNAL SACRIFICE': merge(BONUS_ATTACKS_1, STRENGTH_BONUS_1),
+  'GNAWING HUNGER': merge(BONUS_ATTACKS_1, STRENGTH_BONUS_1),
+  'IRON ARM': STRENGTH_BONUS_1,
+  'EXPERIMENTAL AMMUNITION': STRENGTH_BONUS_1,
+  // --- Ignores cover ---
+  'SERVO\u2011DESIGNATORS': IGNORES_COVER,
+  // --- Conditionals ---
+  'GUIDED FIRE': STRENGTH_BONUS_1,
+  // --- Choose-one (map best option) ---
+  'HARDENED KILLERS': PLUS_1_HIT,
+  // ─── New Extension Entries (stealth, cover, ignore penalties, reroll saves) ──
+  // --- Grants Stealth ---
+  'SHINING VEIL': GRANTS_STEALTH,
+  'FESTERING MIASMA': GRANTS_STEALTH,
+  'SHROUD OF CHAOS': GRANTS_STEALTH,
+  'PSYCHIC ABOMINATIONS': GRANTS_STEALTH,
+  // --- Grants Stealth + Cover ---
+  SMOKESCREEN: merge(GRANTS_STEALTH, GRANTS_COVER),
+  'DISPERSED FORMATION': merge(GRANTS_STEALTH, GRANTS_COVER),
+  'STORM OF DARKNESS': merge(GRANTS_STEALTH, GRANTS_COVER),
+  'INCENSE EXHAUSTS': merge(GRANTS_STEALTH, GRANTS_COVER),
+  "STALKIN' TAKTIKS": merge(GRANTS_STEALTH, GRANTS_COVER),
+  // --- Grants Cover only ---
+  'STALWART PROTECTOR': GRANTS_COVER,
+  // --- Ignore hit penalties ---
+  'AGGRESSIVE ANTICIPATION': IGNORE_HIT_PENALTIES,
+  'LIGHT OF THE EMPEROR': IGNORE_HIT_PENALTIES,
+  'FINAL HOUR': IGNORE_HIT_PENALTIES,
+  'MACHINE SUPERIORITY': IGNORE_HIT_PENALTIES,
+  'UNBOWED CONVICTION': IGNORE_HIT_PENALTIES,
+  // --- Ignore hit + wound penalties ---
+  'MACHINE FOCUS': IGNORE_ALL_PENALTIES,
+  'MALEVOLENT ANIMUS': IGNORE_ALL_PENALTIES,
+  'UNSHAKEABLE OPPONENTS': IGNORE_ALL_PENALTIES,
+  'MOLECULAR TARGETING': IGNORE_ALL_PENALTIES,
+  // --- Reroll saves ---
+  'DAEMONIC INVULNERABILITY': REROLL_SAVES_ONES,
+  'FATE SYPHONING': REROLL_SAVES_ONES,
 };

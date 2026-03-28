@@ -108,12 +108,17 @@ interface ModState {
   apValue: number;
   rerollHits: RerollPolicy;
   rerollWounds: RerollPolicy;
+  rerollSaves: RerollPolicy;
   critHitOn: number;
   critWoundOn: number;
   lethalHits: boolean;
   sustainedHits: number;
   devastatingWounds: boolean;
   ignoresCover: boolean;
+  grantsStealth: boolean;
+  grantsBenefitOfCover: boolean;
+  ignoreHitPenalties: boolean;
+  ignoreWoundPenalties: boolean;
   attacksBonus: number;
   strengthBonus: number;
   damageBonus: number;
@@ -140,6 +145,8 @@ function applyAbilityMods(s: ModState, m: StratagemModifier): void {
   if (m.sustainedHits) s.sustainedHits += m.sustainedHits;
   if (m.devastatingWounds) s.devastatingWounds = true;
   if (m.ignoresCover) s.ignoresCover = true;
+  if (m.ignoreHitPenalties) s.ignoreHitPenalties = true;
+  if (m.ignoreWoundPenalties) s.ignoreWoundPenalties = true;
   if (m.bonusAttacks) s.attacksBonus += m.bonusAttacks;
   if (m.strengthBonus) s.strengthBonus += m.strengthBonus;
   if (m.damageBonus) s.damageBonus += m.damageBonus;
@@ -167,6 +174,9 @@ function applyDefenderMod(s: ModState, m: StratagemModifier): void {
         ? m.invulnerableSave
         : Math.min(s.invulnOverride, m.invulnerableSave);
   }
+  if (m.rerollSaves) s.rerollSaves = upgradeReroll(s.rerollSaves, m.rerollSaves);
+  if (m.grantsStealth) s.grantsStealth = true;
+  if (m.grantsBenefitOfCover) s.grantsBenefitOfCover = true;
 }
 
 /** Fold attacker stratagem effects (base + conditional) into state. */
@@ -227,12 +237,17 @@ export function computeModifiers(
     apValue: weapon.ap,
     rerollHits: 'none',
     rerollWounds: kw.twinLinked ? 'all' : 'none',
+    rerollSaves: 'none',
     critHitOn: 6,
     critWoundOn: computeCritWoundOn(kw, defender),
     lethalHits: kw.lethalHits,
     sustainedHits: kw.sustainedHits,
     devastatingWounds: kw.devastatingWounds,
     ignoresCover: kw.ignoresCover,
+    grantsStealth: false,
+    grantsBenefitOfCover: false,
+    ignoreHitPenalties: false,
+    ignoreWoundPenalties: false,
     attacksBonus: 0,
     strengthBonus: 0,
     damageBonus: 0,
@@ -249,19 +264,42 @@ export function computeModifiers(
   foldAttackerEffects(s, attackerEffects, weapon, attackerState, defenderState);
   foldDefenderEffects(s, defenderEffects, weapon, attackerState, defenderState);
 
+  return finalizeModifiers(s, weapon, defenderState, defender);
+}
+
+/** Apply post-fold adjustments (stealth, cover grants, ignore penalties) and build result. */
+function finalizeModifiers(
+  s: ModState,
+  weapon: ResolvedWeaponGroup,
+  defenderState: DefenderGameState,
+  defender: DefenderProfile
+): ResolvedModifiers {
+  const kw = weapon.keywords;
+
+  // Grants Stealth: apply -1 hit for ranged (same as stealthAll)
+  if (s.grantsStealth && weapon.type === 'ranged') s.hitMod -= 1;
+
+  // Grants Benefit of Cover: force cover bonus on
+  const effectiveDefState = s.grantsBenefitOfCover
+    ? { ...defenderState, benefitOfCover: true }
+    : defenderState;
+
+  // Ignore hit/wound penalties: clamp modifiers to >= 0
+  const finalHitMod = s.ignoreHitPenalties && s.hitMod < 0 ? 0 : s.hitMod;
+  const finalWoundMod = s.ignoreWoundPenalties && s.woundMod < 0 ? 0 : s.woundMod;
+
   // Re-evaluate cover after ignoresCover from stratagems
-  let coverBonus = computeCoverBonus(weapon, defenderState, defender);
-  if (s.ignoresCover && !kw.ignoresCover) {
-    coverBonus = 0;
-  }
+  let coverBonus = computeCoverBonus(weapon, effectiveDefState, defender);
+  if (s.ignoresCover && !kw.ignoresCover) coverBonus = 0;
 
   return {
-    hitModifier: clamp(s.hitMod, -1, 1),
-    woundModifier: clamp(s.woundMod, -1, 1),
+    hitModifier: clamp(finalHitMod, -1, 1),
+    woundModifier: clamp(finalWoundMod, -1, 1),
     apValue: s.apValue,
     coverBonus,
     rerollHits: s.rerollHits,
     rerollWounds: s.rerollWounds,
+    rerollSaves: s.rerollSaves,
     attacksBonus: s.attacksBonus,
     damageBonus: s.damageBonus,
     strengthBonus: s.strengthBonus,

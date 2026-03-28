@@ -39,6 +39,7 @@ const PARSER_RULES: PatternRule[] = [
   [/re-roll (?:the |all )?Hit roll/i, () => ({ rerollHits: 'all' as const })],
   [/re-roll (?:a )?Wound roll(?:s)? of 1/i, () => ({ rerollWounds: 'ones' as const })],
   [/re-roll (?:the |all )?Wound roll/i, () => ({ rerollWounds: 'all' as const })],
+  [/re-roll (?:a |the |all )?(?:saving throw|save roll)/i, () => ({ rerollSaves: 'all' as const })],
 
   // AP
   [/improve.*Armour Penetration.*by (\d+)/i, (m) => ({ apImprovement: parseInt(m[1]) })],
@@ -52,8 +53,12 @@ const PARSER_RULES: PatternRule[] = [
   [/\[IGNORES COVER\]/i, () => ({ ignoresCover: true })],
   [/cannot have.*Benefit of Cover/i, () => ({ ignoresCover: true })],
 
-  // Crit threshold
+  // Crit threshold (multiple phrasings)
   [/(\d)\+\s*(?:is |scores )a Critical Hit/i, (m) => ({ critHitOn: parseInt(m[1]) })],
+  [
+    /Critical Hit(?:s)?\s*(?:is|are)\s*scored on.*?(?:unmodified )?(?:Hit roll(?:s)? of )?(\d)\+/i,
+    (m) => ({ critHitOn: parseInt(m[1]) }),
+  ],
 
   // Defensive
   [/Feel No Pain (\d)\+/i, (m) => ({ feelNoPain: parseInt(m[1]) })],
@@ -64,6 +69,13 @@ const PARSER_RULES: PatternRule[] = [
   [/add (\d+) to the Attacks/i, (m) => ({ bonusAttacks: parseInt(m[1]) })],
   [/add (\d+) to the Strength/i, (m) => ({ strengthBonus: parseInt(m[1]) })],
   [/add (\d+) to the Damage/i, (m) => ({ damageBonus: parseInt(m[1]) })],
+  [/improve.*Strength characteristic.*by (\d+)/i, (m) => ({ strengthBonus: parseInt(m[1]) })],
+  [/improve.*Attacks characteristic.*by (\d+)/i, (m) => ({ bonusAttacks: parseInt(m[1]) })],
+  [/improve.*Damage characteristic.*by (\d+)/i, (m) => ({ damageBonus: parseInt(m[1]) })],
+
+  // Stealth / Cover grants (defender stratagems)
+  [/has the Stealth ability/i, () => ({ grantsStealth: true })],
+  [/gain(?:s)? the Benefit of Cover/i, () => ({ grantsBenefitOfCover: true })],
 ];
 
 /**

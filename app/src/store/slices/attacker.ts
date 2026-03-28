@@ -1,13 +1,13 @@
 import type { StateCreator } from 'zustand';
-import type { Stratagem, UnitDatasheet } from '../../types/data';
+import type { UnitDatasheet } from '../../types/data';
 import type {
   AttackerGameState,
   ConfiguredModel,
   WargearSlot,
   WeaponFiringConfig,
   SelectedWeapon,
-  ActiveStratagem,
 } from '../../types/config';
+import { getConflicting } from '../../logic/effect-keys';
 import { DEFAULT_ATTACKER_STATE } from '../../types/config';
 import { loadStoredDefaults } from '../../utils/local-storage';
 import {
@@ -99,7 +99,7 @@ export interface AttackerSlice {
     firingConfig: WeaponFiringConfig[];
     selectedWeapons: SelectedWeapon[];
     gameState: AttackerGameState;
-    activeStratagems: ActiveStratagem[];
+    activeEffects: string[];
   };
   setAttackerFaction: (slug: string, chapter?: string | null) => void;
   setAttackerDetachment: (name: string) => void;
@@ -110,7 +110,7 @@ export interface AttackerSlice {
   setDefinitionCount: (definitionName: string, count: number) => void;
   setWeaponFiringCount: (groupId: string, weaponName: string, count: number) => void;
   setAttackerGameState: (state: Partial<AttackerGameState>) => void;
-  toggleAttackerStratagem: (stratagem: Stratagem) => void;
+  toggleAttackerEffect: (key: string) => void;
   resetAttacker: () => void;
 }
 
@@ -126,7 +126,7 @@ const initialAttacker: AttackerSlice['attacker'] = {
   firingConfig: [],
   selectedWeapons: [],
   gameState: { ...DEFAULT_ATTACKER_STATE, ...(_stored?.attackerGameState ?? {}) },
-  activeStratagems: [],
+  activeEffects: [],
 };
 
 /** Helper to find the datasheet, preferring chapter-specific variant. */
@@ -192,7 +192,7 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       attacker: {
         ...state.attacker,
         detachmentName: name,
-        activeStratagems: [],
+        activeEffects: [],
       },
     })),
 
@@ -244,7 +244,7 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         firingConfig,
         selectedWeapons,
         gameState: clearedGameState,
-        activeStratagems: [],
+        activeEffects: [],
       },
     });
   },
@@ -474,18 +474,20 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       };
     }),
 
-  toggleAttackerStratagem: (stratagem) =>
+  toggleAttackerEffect: (key) =>
     set((state) => {
-      const existing = state.attacker.activeStratagems;
-      const isActive = existing.some((a) => a.stratagem.name === stratagem.name);
-      return {
-        attacker: {
-          ...state.attacker,
-          activeStratagems: isActive
-            ? existing.filter((a) => a.stratagem.name !== stratagem.name)
-            : [...existing, { stratagem }],
-        },
-      };
+      const existing = state.attacker.activeEffects;
+      const isActive = existing.includes(key);
+      if (isActive) {
+        return {
+          attacker: { ...state.attacker, activeEffects: existing.filter((k) => k !== key) },
+        };
+      }
+      // Remove conflicting keys (e.g., rerollHits:ones when enabling rerollHits:all)
+      const conflicts = getConflicting(key);
+      const filtered =
+        conflicts.length > 0 ? existing.filter((k) => !conflicts.includes(k)) : existing;
+      return { attacker: { ...state.attacker, activeEffects: [...filtered, key] } };
     }),
 
   resetAttacker: () => set({ attacker: { ...initialAttacker } }),

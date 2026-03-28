@@ -1,10 +1,8 @@
 import { Overlay } from '../layout/Overlay';
 import { DetachmentPicker } from '../faction/DetachmentPicker';
 import { UnitConfigurator } from '../unit-config/UnitConfigurator';
-import { StratagemPicker } from '../game-state/StratagemPicker';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
-import { filterAttackerStratagems, filterDefenderStratagems } from '../../logic/stratagems';
 import type { WargearSlot, WeaponFiringConfig } from '../../types/config';
 
 interface Props {
@@ -20,25 +18,19 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
   const isAttacker = side === 'attacker';
 
   const factionSlug = useAppStore((s) =>
-    isAttacker ? s.attacker.factionSlug : s.defender.factionSlug,
+    isAttacker ? s.attacker.factionSlug : s.defender.factionSlug
   );
   const unitName = useAppStore((s) => (isAttacker ? s.attacker.unitName : s.defender.unitName));
   const detachmentName = useAppStore((s) =>
-    isAttacker ? s.attacker.detachmentName : s.defender.detachmentName,
+    isAttacker ? s.attacker.detachmentName : s.defender.detachmentName
   );
   const setDetachment = useAppStore((s) =>
-    isAttacker ? s.setAttackerDetachment : s.setDefenderDetachment,
+    isAttacker ? s.setAttackerDetachment : s.setDefenderDetachment
   );
   const models = useAppStore((s) => (isAttacker ? s.attacker.models : s.defender.models));
   const slots = useAppStore((s) => (isAttacker ? s.attacker.slots : EMPTY_SLOTS));
   const firingConfig = useAppStore((s) =>
-    isAttacker ? s.attacker.firingConfig : EMPTY_FIRING_CONFIG,
-  );
-  const activeStratagems = useAppStore((s) =>
-    isAttacker ? s.attacker.activeStratagems : s.defender.activeStratagems,
-  );
-  const toggleStratagem = useAppStore((s) =>
-    isAttacker ? s.toggleAttackerStratagem : s.toggleDefenderStratagem,
+    isAttacker ? s.attacker.firingConfig : EMPTY_FIRING_CONFIG
   );
   const attackMode = useAppStore((s) => s.attacker.gameState.attackMode);
 
@@ -59,14 +51,6 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
       const fk = d.factionKeywords.map((k) => k.toUpperCase());
       return fk.includes(chapter);
     }) ?? data?.datasheets.datasheets.find((d) => d.name === unitName);
-  const detachment = data?.rules.detachments.find((d) => d.name === detachmentName);
-
-  const applicableStratagems =
-    detachment && datasheet
-      ? isAttacker
-        ? filterAttackerStratagems(detachment, datasheet)
-        : filterDefenderStratagems(detachment, datasheet)
-      : [];
 
   if (!datasheet) return null;
 
@@ -98,14 +82,6 @@ export function ConfigOverlay({ side, isOpen, onClose }: Props) {
           onDefinitionCount={isAttacker ? setDefinitionCount : undefined}
           onWeaponFiringCount={isAttacker ? setWeaponFiringCount : undefined}
         />
-
-        {applicableStratagems.length > 0 && (
-          <StratagemPicker
-            available={applicableStratagems}
-            active={activeStratagems}
-            onToggle={toggleStratagem}
-          />
-        )}
       </div>
     </Overlay>
   );

@@ -94,6 +94,7 @@ export interface ResolvedModifiers {
   damageReduction: number; // From stratagems (e.g. -1 damage)
   feelNoPainOverride: number | null; // From stratagems (e.g. FNP 5+)
   invulnOverride: number | null; // From stratagems (e.g. 4+ invuln)
+  rerollSaves: RerollPolicy; // From stratagems (e.g. reroll saves)
 }
 
 // ─── Defender Profile ────────────────────────────────────────────

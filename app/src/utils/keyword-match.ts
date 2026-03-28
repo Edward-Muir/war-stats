@@ -9,11 +9,18 @@
 export function matchesCompoundKeyword(
   compoundKeyword: string,
   unitKeywords: string[],
-  factionKeywords: string[],
+  factionKeywords: string[]
 ): boolean {
-  const allKeywords = new Set(
-    [...unitKeywords, ...factionKeywords].map((k) => k.toUpperCase()),
-  );
+  const allKeywords = new Set<string>();
+  for (const k of [...unitKeywords, ...factionKeywords]) {
+    const upper = k.toUpperCase();
+    allKeywords.add(upper);
+    // Decompose multi-word keywords so compound matching works
+    // e.g. "ADEPTUS ASTARTES" adds both the full string AND "ADEPTUS", "ASTARTES"
+    for (const word of upper.split(/\s+/)) {
+      if (word) allKeywords.add(word);
+    }
+  }
 
   const words = compoundKeyword
     .toUpperCase()
@@ -30,12 +37,10 @@ export function matchesCompoundKeyword(
 export function matchesAnyTargetKeyword(
   targetKeywords: string[],
   unitKeywords: string[],
-  factionKeywords: string[],
+  factionKeywords: string[]
 ): boolean {
   if (targetKeywords.length === 0) return true; // No restrictions
-  return targetKeywords.some((tk) =>
-    matchesCompoundKeyword(tk, unitKeywords, factionKeywords),
-  );
+  return targetKeywords.some((tk) => matchesCompoundKeyword(tk, unitKeywords, factionKeywords));
 }
 
 /**
@@ -45,11 +50,16 @@ export function matchesAnyTargetKeyword(
 export function matchesAllKeywordRestrictions(
   restrictions: string[],
   unitKeywords: string[],
-  factionKeywords: string[],
+  factionKeywords: string[]
 ): boolean {
   if (restrictions.length === 0) return true;
-  const allKeywords = new Set(
-    [...unitKeywords, ...factionKeywords].map((k) => k.toUpperCase()),
-  );
+  const allKeywords = new Set<string>();
+  for (const k of [...unitKeywords, ...factionKeywords]) {
+    const upper = k.toUpperCase();
+    allKeywords.add(upper);
+    for (const word of upper.split(/\s+/)) {
+      if (word) allKeywords.add(word);
+    }
+  }
   return restrictions.every((r) => allKeywords.has(r.toUpperCase()));
 }

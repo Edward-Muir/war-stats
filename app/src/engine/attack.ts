@@ -1,6 +1,6 @@
-import type { ResolvedModifiers, DefenderProfile, DiceExpr } from "../types/simulation";
-import { rollD6, rollDiceExpr } from "./dice";
-import { getWoundThreshold } from "./modifiers";
+import type { ResolvedModifiers, DefenderProfile, DiceExpr } from '../types/simulation';
+import { rollD6, rollDiceExpr } from './dice';
+import { getWoundThreshold } from './modifiers';
 
 /** Result of resolving a single attack through the 5-step sequence. */
 export interface AttackResult {
@@ -9,8 +9,8 @@ export interface AttackResult {
   wound: boolean;
   isCritWound: boolean;
   saved: boolean;
-  damage: number;           // Normal damage dealt (after FNP)
-  mortalWounds: number;     // From devastating wounds
+  damage: number; // Normal damage dealt (after FNP)
+  mortalWounds: number; // From devastating wounds
   sustainedExtraHits: number; // Additional hits generated
 }
 
@@ -31,7 +31,7 @@ function makeEmptyResult(): AttackResult {
 function resolveHitRoll(
   skill: number,
   modifiers: ResolvedModifiers,
-  isAutoHit: boolean,
+  isAutoHit: boolean
 ): { hit: boolean; isCritHit: boolean } | null {
   if (modifiers.autoHit || isAutoHit) {
     return { hit: true, isCritHit: false };
@@ -52,15 +52,15 @@ function resolveHitRoll(
 function resolveWoundRoll(
   strength: number,
   toughness: number,
-  modifiers: ResolvedModifiers,
+  modifiers: ResolvedModifiers
 ): { wound: boolean; isCritWound: boolean } | null {
   const woundThreshold = getWoundThreshold(strength, toughness);
   let woundRoll = rollD6();
   const unmodifiedWound = woundRoll;
 
-  if (modifiers.rerollWounds === "all" && unmodifiedWound < woundThreshold) {
+  if (modifiers.rerollWounds === 'all' && unmodifiedWound < woundThreshold) {
     woundRoll = rollD6();
-  } else if (modifiers.rerollWounds === "ones" && unmodifiedWound === 1) {
+  } else if (modifiers.rerollWounds === 'ones' && unmodifiedWound === 1) {
     woundRoll = rollD6();
   }
 
@@ -75,27 +75,34 @@ function resolveWoundRoll(
 }
 
 /** Step 4: resolve the saving throw. */
-function resolveSave(
-  modifiers: ResolvedModifiers,
-  defender: DefenderProfile,
-): boolean {
-  const saveRoll = rollD6();
-  if (saveRoll === 1) return false;
-
-  const armourSave = saveRoll - modifiers.apValue + modifiers.coverBonus;
-  const armourPasses = armourSave >= defender.save;
+function resolveSave(modifiers: ResolvedModifiers, defender: DefenderProfile): boolean {
+  let saveRoll = rollD6();
 
   // Use best invuln between defender's base and stratagem override
   let effectiveInvuln = defender.invulnerableSave;
   if (modifiers.invulnOverride !== null) {
-    effectiveInvuln = effectiveInvuln === null
-      ? modifiers.invulnOverride
-      : Math.min(effectiveInvuln, modifiers.invulnOverride);
+    effectiveInvuln =
+      effectiveInvuln === null
+        ? modifiers.invulnOverride
+        : Math.min(effectiveInvuln, modifiers.invulnOverride);
   }
 
-  const invulnPasses = effectiveInvuln !== null && saveRoll >= effectiveInvuln;
+  /** Check whether a roll passes the save. */
+  const passes = (roll: number): boolean => {
+    if (roll === 1) return false;
+    const armourSave = roll - modifiers.apValue + modifiers.coverBonus;
+    const invulnPasses = effectiveInvuln !== null && roll >= effectiveInvuln;
+    return armourSave >= defender.save || invulnPasses;
+  };
 
-  return armourPasses || invulnPasses;
+  // Reroll saves from stratagems
+  if (!passes(saveRoll) && modifiers.rerollSaves !== 'none') {
+    if (modifiers.rerollSaves === 'all' || (modifiers.rerollSaves === 'ones' && saveRoll === 1)) {
+      saveRoll = rollD6();
+    }
+  }
+
+  return passes(saveRoll);
 }
 
 /**
@@ -114,7 +121,7 @@ export function resolveAttack(
   damage: DiceExpr,
   modifiers: ResolvedModifiers,
   defender: DefenderProfile,
-  isAutoHit: boolean = false,
+  isAutoHit: boolean = false
 ): AttackResult {
   const result = makeEmptyResult();
 

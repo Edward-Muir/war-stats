@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand';
-import type { Stratagem } from '../../types/data';
-import type { DefenderGameState, ConfiguredModel, ActiveStratagem } from '../../types/config';
+import type { DefenderGameState, ConfiguredModel } from '../../types/config';
+import { getConflicting } from '../../logic/effect-keys';
 import { DEFAULT_DEFENDER_STATE } from '../../types/config';
 import { buildWargearSlots, buildDefaultModels } from '../../logic/wargear-slots';
 import { loadStoredDefaults } from '../../utils/local-storage';
@@ -14,14 +14,14 @@ export interface DefenderSlice {
     unitName: string | null;
     models: ConfiguredModel[];
     gameState: DefenderGameState;
-    activeStratagems: ActiveStratagem[];
+    activeEffects: string[];
   };
   setDefenderFaction: (slug: string, chapter?: string | null) => void;
   setDefenderDetachment: (name: string) => void;
   setDefenderUnit: (name: string) => void;
   setDefenderModels: (models: ConfiguredModel[]) => void;
   setDefenderGameState: (state: Partial<DefenderGameState>) => void;
-  toggleDefenderStratagem: (stratagem: Stratagem) => void;
+  toggleDefenderEffect: (key: string) => void;
   resetDefender: () => void;
 }
 
@@ -34,7 +34,7 @@ const initialDefender: DefenderSlice['defender'] = {
   unitName: null,
   models: [],
   gameState: { ...DEFAULT_DEFENDER_STATE, ...(_stored?.defenderGameState ?? {}) },
-  activeStratagems: [],
+  activeEffects: [],
 };
 
 export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> = (set, get) => ({
@@ -48,7 +48,7 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
       defender: {
         ...state.defender,
         detachmentName: name,
-        activeStratagems: [],
+        activeEffects: [],
       },
     })),
 
@@ -79,7 +79,7 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
         ...state.defender,
         unitName: name,
         models,
-        activeStratagems: [],
+        activeEffects: [],
         gameState: {
           ...state.defender.gameState,
           stealthAll: hasStealth,
@@ -98,18 +98,19 @@ export const createDefenderSlice: StateCreator<AppStore, [], [], DefenderSlice> 
       },
     })),
 
-  toggleDefenderStratagem: (stratagem) =>
+  toggleDefenderEffect: (key) =>
     set((state) => {
-      const existing = state.defender.activeStratagems;
-      const isActive = existing.some((a) => a.stratagem.name === stratagem.name);
-      return {
-        defender: {
-          ...state.defender,
-          activeStratagems: isActive
-            ? existing.filter((a) => a.stratagem.name !== stratagem.name)
-            : [...existing, { stratagem }],
-        },
-      };
+      const existing = state.defender.activeEffects;
+      const isActive = existing.includes(key);
+      if (isActive) {
+        return {
+          defender: { ...state.defender, activeEffects: existing.filter((k) => k !== key) },
+        };
+      }
+      const conflicts = getConflicting(key);
+      const filtered =
+        conflicts.length > 0 ? existing.filter((k) => !conflicts.includes(k)) : existing;
+      return { defender: { ...state.defender, activeEffects: [...filtered, key] } };
     }),
 
   resetDefender: () => set({ defender: { ...initialDefender } }),

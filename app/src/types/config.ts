@@ -1,4 +1,4 @@
-import type { RawWeapon, Stratagem } from './data';
+import type { RawWeapon } from './data';
 
 // ─── Wargear Slots ──────────────────────────────────────────────
 
@@ -119,8 +119,7 @@ export interface GameStateRelevance {
   closestTarget: boolean;
 }
 
-// ─── Active Stratagems ───────────────────────────────────────────
+// ─── Active Effects ─────────────────────────────────────────────
 
-export interface ActiveStratagem {
-  stratagem: Stratagem;
-}
+/** Effect keys are strings like 'apImprovement:1', 'lethalHits', etc. */
+export type ActiveEffectKey = string;

@@ -5,7 +5,8 @@ import { Crosshair, Menu, Settings, Swords } from 'lucide-react';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
 import { GameState } from '../game-state/GameState';
-import { StratagemChips } from '../game-state/StratagemChips';
+import { EffectChips } from '../game-state/EffectChips';
+import { deriveAvailableEffects } from '../../logic/effect-keys';
 import { SimulationStatus } from '../simulation/SimulationControls';
 import { ResultsChart } from '../simulation/ResultsChart';
 import { FactionOverlay } from '../overlays/FactionOverlay';
@@ -176,10 +177,10 @@ export function AppShell() {
   const defenderDetachmentName = useAppStore((s) => s.defender.detachmentName);
   const attackerChapter = useAppStore((s) => s.attacker.chapter);
   const defenderChapter = useAppStore((s) => s.defender.chapter);
-  const attackerActiveStratagems = useAppStore((s) => s.attacker.activeStratagems);
-  const defenderActiveStratagems = useAppStore((s) => s.defender.activeStratagems);
-  const toggleAttackerStratagem = useAppStore((s) => s.toggleAttackerStratagem);
-  const toggleDefenderStratagem = useAppStore((s) => s.toggleDefenderStratagem);
+  const attackerActiveEffects = useAppStore((s) => s.attacker.activeEffects);
+  const defenderActiveEffects = useAppStore((s) => s.defender.activeEffects);
+  const toggleAttackerEffect = useAppStore((s) => s.toggleAttackerEffect);
+  const toggleDefenderEffect = useAppStore((s) => s.toggleDefenderEffect);
   const attackerFactionData = useAppStore((s) =>
     attackerFactionSlug ? s.loadedFactions[attackerFactionSlug] : undefined
   );
@@ -234,6 +235,16 @@ export function AppShell() {
     attackerUnitName,
     defenderFactionData,
     defenderUnitName
+  );
+
+  // Derive available effect chips from filtered stratagems
+  const attackerAvailableEffects = useMemo(
+    () => deriveAvailableEffects(attackerStratagems, attackMode),
+    [attackerStratagems, attackMode]
+  );
+  const defenderAvailableEffects = useMemo(
+    () => deriveAvailableEffects(defenderStratagems, attackMode),
+    [defenderStratagems, attackMode]
   );
 
   return (
@@ -299,15 +310,12 @@ export function AppShell() {
               <Settings className="h-4 w-4" />
             </Button>
           </div>
-          {attackerStratagems.length > 0 && (
-            <StratagemChips
-              side="attacker"
-              stratagems={attackerStratagems}
-              activeStratagems={attackerActiveStratagems}
-              onToggle={toggleAttackerStratagem}
-              attackMode={attackMode}
-            />
-          )}
+          <EffectChips
+            side="attacker"
+            availableEffects={attackerAvailableEffects}
+            activeEffects={attackerActiveEffects}
+            onToggle={toggleAttackerEffect}
+          />
         </section>
 
         {/* Defender section */}
@@ -340,15 +348,12 @@ export function AppShell() {
               <Settings className="h-4 w-4" />
             </Button>
           </div>
-          {defenderStratagems.length > 0 && (
-            <StratagemChips
-              side="defender"
-              stratagems={defenderStratagems}
-              activeStratagems={defenderActiveStratagems}
-              onToggle={toggleDefenderStratagem}
-              attackMode={attackMode}
-            />
-          )}
+          <EffectChips
+            side="defender"
+            availableEffects={defenderAvailableEffects}
+            activeEffects={defenderActiveEffects}
+            onToggle={toggleDefenderEffect}
+          />
         </section>
 
         {/* Game state chips */}

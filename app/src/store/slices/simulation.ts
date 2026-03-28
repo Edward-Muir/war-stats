@@ -90,7 +90,7 @@ export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSli
 import type { SimulationInput } from '../../types/simulation';
 import { resolveWeaponGroups, buildDefenderProfile } from '../../logic/unit-config';
 import { getTotalModels } from '../../logic/wargear-slots';
-import { resolveStratagemEffect } from '../../logic/stratagem-effects';
+import { buildSyntheticEffect } from '../../logic/effect-keys';
 
 function buildSimulationInput(state: AppStore): SimulationInput | null {
   const { attacker, defender, simulation } = state;
@@ -120,13 +120,8 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   const defenderModelCount = getTotalModels(defender.models);
   const defenderProfile = buildDefenderProfile(defenderDatasheet, defenderModelCount);
 
-  const attackerEffects = attacker.activeStratagems
-    .map((a) => resolveStratagemEffect(a.stratagem))
-    .filter((e) => e.isParsed);
-
-  const defenderEffects = defender.activeStratagems
-    .map((a) => resolveStratagemEffect(a.stratagem))
-    .filter((e) => e.isParsed);
+  const attackerEffects = buildSyntheticEffect(attacker.activeEffects);
+  const defenderEffects = buildSyntheticEffect(defender.activeEffects);
 
   return {
     attacker: {

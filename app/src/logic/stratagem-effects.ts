@@ -30,6 +30,12 @@ export interface StratagemModifier {
   damageReduction?: number;
   saveModifier?: number;
   invulnerableSave?: number;
+  rerollSaves?: 'ones' | 'all';
+  // Ability grants
+  grantsStealth?: boolean; // Defender: -1 to ranged hit rolls
+  grantsBenefitOfCover?: boolean; // Defender: +1 to save
+  ignoreHitPenalties?: boolean; // Attacker: clamp hit modifier to >= 0
+  ignoreWoundPenalties?: boolean; // Attacker: clamp wound modifier to >= 0
 }
 
 // ─── Conditions ─────────────────────────────────────────────────
