@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.6](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.5...warstats-v0.1.6) (2026-03-29)
+
+
+### Bug Fixes
+
+* fix reroll wounds ([db22864](https://github.com/Edward-Muir/war-stats/commit/db228646443d467c1408319bfa54fe0a07f10fb8))
+
 ## [0.1.5](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.4...warstats-v0.1.5) (2026-03-28)
 
 
