@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.7](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.6...warstats-v0.1.7) (2026-03-29)
+
+
+### Features
+
+* Add detachment and faction abilities ([d4f8260](https://github.com/Edward-Muir/war-stats/commit/d4f82602494bdc2be09377ab7bf783f34e7fbbdf))
+
 ## [0.1.6](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.5...warstats-v0.1.6) (2026-03-29)
 
 
