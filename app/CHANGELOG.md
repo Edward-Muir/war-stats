@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.8](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.7...warstats-v0.1.8) (2026-03-29)
+
+
+### Features
+
+* Handle enhancements and detachment rules ([b401b45](https://github.com/Edward-Muir/war-stats/commit/b401b45b7ac55daab0a27f1d1aba803a14b4d03d))
+
 ## [0.1.7](https://github.com/Edward-Muir/war-stats/compare/warstats-v0.1.6...warstats-v0.1.7) (2026-03-29)
 
 
