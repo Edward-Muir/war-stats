@@ -587,7 +587,7 @@ When model counts change:
 
 ### Modifier Computation (`engine/modifiers.ts`)
 
-`computeModifiers()` takes weapon + game state + defender + stratagem effects and produces `ResolvedModifiers`:
+`computeModifiers()` takes weapon + game state + defender + `UnitEffect[]` and produces `ResolvedModifiers`:
 
 1. **Base modifiers from weapon keywords:**
    - Hit: HEAVY (+1 if stationary), STEALTH (-1 ranged), INDIRECT FIRE (-1 ranged)
@@ -595,15 +595,19 @@ When model counts change:
    - Attacks bonus: RAPID FIRE (+X at half range), BLAST (+1 per 5 defender models)
    - Damage bonus: MELTA (+X at half range)
 
-2. **Fold in attacker stratagem effects** (filtered by combat type):
-   - Hit/wound modifiers, AP improvement, rerolls, crit thresholds, lethal/sustained/devastating, ignores cover, lance
+2. **Fold in attacker effects** (`UnitEffect[]`, filtered by combat type + weapon scope):
+   - Each UnitEffect carries a single modifier field (per-modifier decomposition)
+   - `matchesWeaponScope()` checks `weaponNameIncludes` / `weaponHasKeyword` before applying
+   - Hit/wound modifiers, AP improvement, rerolls, crit thresholds, lethal/sustained/devastating, ignores cover, lance, bonus attacks, strength/damage bonus
 
-3. **Fold in defender stratagem effects:**
-   - Hit/wound modifiers, AP worsen (saveModifier), FNP grant, damage reduction, invuln grant
+3. **Fold in defender effects** (`UnitEffect[]`):
+   - Hit/wound modifiers, AP worsen (saveModifier), FNP grant, damage reduction, invuln grant, toughness/wounds bonus, stealth, cover
 
-4. **Apply caps:** Hit ±1, Wound ±1
+4. **Evaluate conditionals:** For UnitEffects with `conditionals[]`, check each condition against game state (remainedStationary, charged, targetInHalfRange, etc.) and apply if met
 
-5. **Cover re-evaluation:** If stratagems granted ignores cover, clear cover bonus
+5. **Apply caps:** Hit ±1, Wound ±1
+
+6. **Cover re-evaluation:** If effects granted ignores cover, clear cover bonus
 
 ---
 
@@ -722,121 +726,186 @@ aggregate → DistributionStats { mean, median, stddev, min, max, percentiles, h
 
 ---
 
-## 9. Stratagem & Rules System
+## 9. Effect System
 
-### Current State
+### Overview
 
-**Stratagems** are sourced from Wahapedia (not BattleScribe — BS lacks them entirely). They have structured metadata (`when`, `target`, `effect` as free text, plus `target_keywords[]`, `keywords_mentioned[]`).
+All simulation modifiers — from abilities, army rules, detachment rules, enhancements, and stratagems — flow through a unified `UnitEffect` pipeline. Each modifier field is decomposed into its own toggleable chip in the UI, and duplicates across sources are deduplicated.
 
-### Stratagem Filtering (`logic/stratagems.ts`)
+```
+Effect Sources (5 types)
+  │
+  ├── Unit abilities     → deriveAbilityUnitEffects()
+  ├── Army rules         → deriveRuleUnitEffects()
+  ├── Detachment rules   → deriveRuleUnitEffects()
+  ├── Enhancements       → deriveRuleUnitEffects()
+  └── Stratagems         → deriveStratagemUnitEffects()
+  │
+  ▼
+UnitEffect[] (per-modifier, decomposed)
+  │
+  ▼
+useAvailableEffects() — dedup by label
+  │
+  ▼
+EffectChips UI — user toggles independently
+  │
+  ▼
+Store: activeEffectIds[] / availableEffects[]
+  │
+  ▼
+buildSimulationInput() — filter active → engine
+```
 
-Filters stratagems applicable to a selected unit:
-1. Match by detachment (only show stratagems from selected detachment)
-2. Compound keyword matching: `"ADEPTUS ASTARTES INFANTRY"` decomposes into individual words, each must exist in the unit's `keywords` + `factionKeywords`
-3. Separate attacker vs defender filtering
+### Core Types
 
-### Stratagem Effect Resolution (`logic/stratagem-effects.ts`)
+**`UnitEffect`** (`types/effects.ts`) — one modifier, one chip:
 
-Two-layer approach:
+```typescript
+interface UnitEffect {
+  id: string;              // "ability::Target Elimination::bonusAttacks"
+  label: string;           // "+2 Attacks (bolt)" — chip display text
+  source: string;          // "Ability: Target Elimination" — for future long-press
+  side: 'attacker' | 'defender';
+  activation: 'always' | 'toggle';
+  combatType: CombatType;  // 'ranged' | 'melee' | 'any'
+  modifiers: StratagemModifier;     // single-field modifier
+  conditionals: ConditionalModifier[];
+  weaponScope?: WeaponScope;        // restrict to matching weapons
+}
+```
 
-**Layer 1: Name-based lookup table** (`STRATAGEM_EFFECTS`)
-- ~300 stratagems mapped by exact name to `StratagemModifier` objects
-- Covers: reroll hits/wounds, ±1 hit/wound, AP improve/worsen, crit 5+, lethal/sustained/devastating, ignores cover, lance, FNP, damage reduction, invuln save
-- Effects are composable via `merge()` (e.g., `merge(AP_IMPROVE_1, LANCE)`)
+**`WeaponScope`** — restrict effects to specific weapons:
 
-**Layer 2: Combat type classification** (`classifyCombatType()`)
-- Parses `when` and `effect` text to determine if stratagem applies to `"ranged"` / `"melee"` / `"any"`
-- Checks for "ranged attack"/"melee attack" in effect text, "shooting phase"/"fight phase" in when text
+```typescript
+interface WeaponScope {
+  weaponNameIncludes?: string;   // case-insensitive substring match
+  weaponHasKeyword?: string;     // match parsed weapon keyword
+}
+```
 
-**Output:** `ParsedStratagemEffect { combatType, modifiers, isParsed }`
-- `isParsed: true` = found in lookup table (modifiers applied to simulation)
-- `isParsed: false` = not recognized (displayed with "not simulated" badge in UI)
-
-### `StratagemModifier` Fields
+**`StratagemModifier`** — 31 modifier fields:
 
 ```typescript
 interface StratagemModifier {
   // Attacker offensive
-  hitModifier?: number;          // +1/-1
-  woundModifier?: number;        // +1/-1
-  apImprovement?: number;        // +1 AP
+  hitModifier?: number;
+  woundModifier?: number;
+  apImprovement?: number;
   rerollHits?: 'ones' | 'all';
   rerollWounds?: 'ones' | 'all';
-  critHitOn?: number;            // e.g. 5 for crits on 5+
+  critHitOn?: number;
   critWoundOn?: number;
   lethalHits?: boolean;
   sustainedHits?: number;
   devastatingWounds?: boolean;
   ignoresCover?: boolean;
   lance?: boolean;
+  bonusAttacks?: number;
+  strengthBonus?: number;
+  damageBonus?: number;
 
   // Defender defensive
-  feelNoPain?: number;           // e.g. 5 for FNP 5+
-  damageReduction?: number;      // e.g. 1 for -1 damage
-  saveModifier?: number;         // Worsen AP by this amount
-  invulnerableSave?: number;     // e.g. 4 for 4+ invuln
+  feelNoPain?: number;
+  damageReduction?: number;
+  saveModifier?: number;
+  invulnerableSave?: number;
+  rerollSaves?: 'ones' | 'all';
+  toughnessBonus?: number;
+  woundsBonus?: number;
+  saveOverride?: number;
+  grantsStealth?: boolean;
+  grantsBenefitOfCover?: boolean;
+  ignoreHitPenalties?: boolean;
+  ignoreWoundPenalties?: boolean;
 }
 ```
 
-### How Modifiers Flow Into the Engine
+### Per-Modifier Decomposition
+
+Each table entry's `StratagemModifier` is split into individual single-field `UnitEffect` objects in the derive functions. Multi-modifier entries produce multiple chips:
 
 ```
-ActiveStratagem[]
-  → resolveStratagemEffect() for each
-  → ParsedStratagemEffect[]
-  → Passed into SimulationInput.attackerEffects / defenderEffects
-  → computeModifiers() folds them in (filtered by combatType vs weapon.type)
-  → ResolvedModifiers applied in attack.ts
+Entry: merge(REROLL_HITS, PLUS_1_WOUND) = { rerollHits: 'all', woundModifier: 1 }
+  → UnitEffect { modifiers: { rerollHits: 'all' }, label: "Reroll Hits" }
+  → UnitEffect { modifiers: { woundModifier: 1 },  label: "+1 Wound" }
 ```
 
-### Enhancement & Army Rule Effects (Not Yet Simulated)
+**Exceptions:** Entries with `conditionals[]` (game-state-gated effects) are NOT decomposed — kept as single chips to preserve the condition association.
 
-Enhancements and army rules have free-text `description` fields. Currently:
-- Displayed in UI
-- Filtered by keyword restrictions
-- NOT parsed into simulation modifiers
-- Same `StratagemModifier` structure could be reused
+### Label Generation
+
+`formatEffectLabel(mods, scope?)` generates chip labels from modifier data + optional weapon scope qualifier:
+
+| Modifiers | Scope | Label |
+|-----------|-------|-------|
+| `{ rerollHits: 'all' }` | none | `Reroll Hits` |
+| `{ bonusAttacks: 2 }` | `{ weaponNameIncludes: 'bolt' }` | `+2 Attacks (bolt)` |
+| `{ sustainedHits: 1 }` | `{ weaponHasKeyword: 'assault' }` | `Sustained 1 (assault)` |
+
+### Deduplication
+
+After all sources produce `UnitEffect[]`, the `useAvailableEffects()` hook deduplicates by label. First occurrence wins (priority: abilities → rules → stratagems). This handles overlapping entries naturally — e.g., if Oath of Moment (base) and Oath of Moment (Full) both produce a "Reroll Hits" chip, only one appears.
+
+### Effect Source: Unit Abilities (`logic/ability-effects.ts`)
+
+Three-tier lookup in `ABILITY_EFFECTS` table (`logic/ability-effect-tables/`):
+1. Bare name: `ABILITY_EFFECTS['Target Elimination']`
+2. Faction-scoped: `ABILITY_EFFECTS['space-marines::Target Elimination']`
+3. Unit-specific: `ABILITY_EFFECTS['space-marines::Intercessor Squad::Target Elimination']`
+
+Each entry is an `AbilityEffectEntry`:
+```typescript
+interface AbilityEffectEntry {
+  side: 'offensive' | 'defensive';
+  activation: 'always' | 'conditional';
+  modifiers: StratagemModifier;
+  conditionals?: ConditionalModifier[];
+  combatType?: CombatType;
+  weaponScope?: WeaponScope;
+}
+```
+
+~330 abilities mapped across `imperium.ts`, `chaos.ts`, `xenos.ts`.
+
+### Effect Source: Army/Detachment/Enhancement Rules (`logic/rule-effects.ts`)
+
+Three lookup tables with `StratagemEffectEntry` values:
+- **`ARMY_RULE_EFFECTS`** — keyed by `"Faction::RuleName"` (e.g., `"Space Marines::Oath of Moment"`)
+- **`DETACHMENT_RULE_EFFECTS`** — keyed by `"Faction::Detachment::RuleName"`
+- **`ENHANCEMENT_EFFECTS`** — keyed by enhancement name (or `"Faction::Detachment::Name"` for collisions)
+
+`StratagemEffectEntry` is either a flat `StratagemModifier` or `{ base, conditionals[] }`. Reusable templates in `modifier-templates.ts` (`PLUS_1_HIT`, `REROLL_HITS`, `merge()`, `conditional()`).
+
+### Effect Source: Stratagems (`logic/stratagem-effects.ts`)
+
+Two-layer resolution:
+1. **Manual table** (`STRATAGEM_EFFECTS`) — ~400 stratagems mapped by name
+2. **Auto-parser fallback** (`parseStratagemEffectText`) — regex-based text parsing
+3. **Combat type classification** — parses `when`/`effect` text for ranged/melee/any
+
+### Stratagem Filtering (`logic/stratagems.ts`)
+
+Filters stratagems applicable to a selected unit:
+1. Match by detachment (only show stratagems from selected detachment)
+2. Compound keyword matching: `"ADEPTUS ASTARTES INFANTRY"` decomposes into individual words, each must exist in the unit's `keywords` + `factionKeywords`
+
+### Store Integration
+
+```typescript
+attacker: {
+  activeEffectIds: string[];       // which chips are toggled on
+  availableEffects: UnitEffect[];  // all available chips for this unit
+}
+```
+
+- `toggleAttackerEffect(id)` — toggle a chip on/off (blocked for `activation: 'always'`)
+- `setAttackerAvailableEffects(effects)` — update when unit/detachment changes, preserving active selections
+- `buildSimulationInput()` filters `availableEffects` by `activeEffectIds` → active `UnitEffect[]` passed to engine
 
 ---
 
 ## 10. Extension Points for Future Features
-
-### Dynamic Game State Population
-
-**Goal:** Only show game state options that can actually affect the selected unit.
-
-**Where to hook in:**
-- After `setAttackerUnit()` / `setDefenderUnit()` in store slices
-- Scan: weapon keywords → which game state toggles are relevant
-- Scan: applicable stratagems → which effects are available
-- Scan: faction/detachment rules → which abilities apply
-
-**Implementation approach:**
-1. Parse weapon keywords for the unit: if any weapon has HEAVY → show "Remained Stationary"; if any has LANCE → show "Charged"; etc.
-2. Parse applicable stratagem effects: if any grants Sustained Hits → show that modifier option
-3. Parse army rule / detachment rule text for structured effects (same pattern as stratagem-effects.ts)
-
-**Key files to modify:**
-- `store/slices/attacker.ts` — compute available game state after unit selection
-- `components/game-state/GameState.tsx` — conditionally render chips
-- New: army rule / detachment rule effect parser (same `StratagemModifier` type)
-
-### Structured Rule Effects (Army Rules, Detachment Rules, Enhancements)
-
-**Goal:** Parse free-text rule descriptions into `StratagemModifier`-compatible effects.
-
-**Current state:** Only stratagems have the name-based lookup table. Army rules, detachment rules, and enhancements are display-only.
-
-**Approach:** Same pattern as `stratagem-effects.ts`:
-1. Name-based lookup table per rule type
-2. `StratagemModifier` output (same type)
-3. Fold into `computeModifiers()` alongside stratagem effects
-4. Army/detachment rules are "always on" (no CP cost, no activation)
-
-**Conditional keywords:** Some rules grant keywords conditionally (e.g., "units in this detachment get Sustained Hits 1 when targeting the closest enemy"). These need:
-- A condition type (closest target, below half strength, etc.)
-- Game state toggle to indicate condition is met
-- The modifier to apply when condition is true
 
 ### Attached Units (Leaders)
 
@@ -869,15 +938,17 @@ Enhancements and army rules have free-text `description` fields. Currently:
 
 | Metric | Count |
 |--------|-------|
-| Factions | 24 |
-| Datasheets | 2,124 |
+| Factions | 25 |
+| Datasheets | 1,632 |
 | Detachments | 164 |
 | Stratagems | 1,044 |
 | Enhancements | 588 |
-| Mapped stratagem effects | ~300 |
+| Mapped stratagem effects | ~400 |
+| Mapped ability effects | ~330 |
+| Army/detachment/enhancement rule effects | ~180 |
 | Model pools detected | 63 |
 | Faction index size | 9 KB |
-| Largest faction datasheet | ~470 KB |
+| Largest faction datasheet | ~370 KB |
 
 ---
 
@@ -894,12 +965,13 @@ Enhancements and army rules have free-text `description` fields. Currently:
 | `split_factions.py` | Monolithic → per-faction JSON |
 | `warstats/models.py` | Pydantic data models |
 
-### TypeScript Types
+### Types
 | File | Purpose |
 |------|---------|
 | `app/src/types/data.ts` | JSON boundary types (mirrors BattleScribe v2 schema) |
 | `app/src/types/config.ts` | UI configuration state types |
 | `app/src/types/simulation.ts` | Engine I/O types (all parsed values) |
+| `app/src/types/effects.ts` | `UnitEffect`, `WeaponScope`, `formatEffectLabel()`, `summarizeModifiers()` |
 
 ### Logic Layer
 | File | Purpose |
@@ -907,8 +979,21 @@ Enhancements and army rules have free-text `description` fields. Currently:
 | `app/src/logic/wargear-slots.ts` | Model pools, slot construction, weapon ID computation, firing config, selected weapons |
 | `app/src/logic/unit-config.ts` | resolveWeaponGroups(), buildDefenderProfile() |
 | `app/src/logic/stratagems.ts` | Keyword-based stratagem filtering |
-| `app/src/logic/stratagem-effects.ts` | Name→modifier lookup, combat type classification |
+| `app/src/logic/stratagem-effects.ts` | `StratagemModifier` type, `resolveStratagemEffect()`, `deriveStratagemUnitEffects()` |
+| `app/src/logic/stratagem-effect-table.ts` | ~400 stratagem name→modifier mappings |
+| `app/src/logic/ability-effects.ts` | `AbilityEffectEntry` type, `resolveAbilityEffect()`, `deriveAbilityUnitEffects()` |
+| `app/src/logic/ability-effect-tables/` | ~330 ability entries: `imperium.ts`, `chaos.ts`, `xenos.ts`, `index.ts` |
+| `app/src/logic/rule-effects.ts` | `deriveRuleUnitEffects()` — army/detachment/enhancement effects |
+| `app/src/logic/army-rule-effect-table.ts` | Army rule name→modifier mappings (Oath of Moment, Dark Pacts, etc.) |
+| `app/src/logic/detachment-rule-effect-table.ts` | Detachment rule name→modifier mappings |
+| `app/src/logic/enhancement-effect-table.ts` | Enhancement name→modifier mappings |
+| `app/src/logic/modifier-templates.ts` | Reusable modifier constants (`PLUS_1_HIT`, `REROLL_HITS`, etc.), `merge()`, `conditional()` |
 | `app/src/logic/pistol-restrictions.ts` | Weapon filtering by engagement range |
+
+### Hooks
+| File | Purpose |
+|------|---------|
+| `app/src/hooks/useAvailableEffects.ts` | Merges all effect sources, deduplicates by label |
 
 ### Engine
 | File | Purpose |
@@ -926,6 +1011,6 @@ Enhancements and army rules have free-text `description` fields. Currently:
 | File | Purpose |
 |------|---------|
 | `app/src/store/store.ts` | Root store, data cache, faction loading |
-| `app/src/store/slices/attacker.ts` | Attacker configuration, wargear, firing, game state |
-| `app/src/store/slices/defender.ts` | Defender configuration |
-| `app/src/store/slices/simulation.ts` | Simulation assembly, worker lifecycle |
+| `app/src/store/slices/attacker.ts` | Attacker config, wargear, firing, game state, `activeEffectIds`/`availableEffects` |
+| `app/src/store/slices/defender.ts` | Defender config, `activeEffectIds`/`availableEffects` |
+| `app/src/store/slices/simulation.ts` | Simulation assembly, worker lifecycle, filters active effects into `SimulationInput` |

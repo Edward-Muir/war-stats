@@ -90,7 +90,7 @@ export const createSimulationSlice: StateCreator<AppStore, [], [], SimulationSli
 import type { SimulationInput } from '../../types/simulation';
 import { resolveWeaponGroups, buildDefenderProfile } from '../../logic/unit-config';
 import { getTotalModels } from '../../logic/wargear-slots';
-import { buildSyntheticEffect } from '../../logic/effect-keys';
+import { parseWeaponKeywords } from '../../engine/keywords';
 
 function buildSimulationInput(state: AppStore): SimulationInput | null {
   const { attacker, defender } = state;
@@ -108,9 +108,18 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   if (!defenderDatasheet) return null;
 
   // Only simulate weapons matching the current attack mode (ranged or melee)
-  const modeWeapons = attacker.selectedWeapons.filter(
+  let modeWeapons = attacker.selectedWeapons.filter(
     (sw) => sw.weapon.type === attacker.gameState.attackMode
   );
+
+  // Advance weapon filtering: only Assault/Pistol weapons can fire after advancing
+  if (attacker.gameState.advanced) {
+    modeWeapons = modeWeapons.filter((sw) => {
+      const kw = parseWeaponKeywords(sw.weapon.keywords);
+      return kw.assault || kw.pistol;
+    });
+  }
+
   if (modeWeapons.length === 0) return null;
 
   const weaponGroups = resolveWeaponGroups(modeWeapons).map((wg) => ({
@@ -120,8 +129,12 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
   const defenderModelCount = getTotalModels(defender.models);
   const defenderProfile = buildDefenderProfile(defenderDatasheet, defenderModelCount);
 
-  const attackerEffects = buildSyntheticEffect(attacker.activeEffects);
-  const defenderEffects = buildSyntheticEffect(defender.activeEffects);
+  // Filter available effects by active IDs to get active UnitEffect[]
+  const activeIds = new Set(attacker.activeEffectIds);
+  const attackerEffects = attacker.availableEffects.filter((e) => activeIds.has(e.id));
+
+  const defActiveIds = new Set(defender.activeEffectIds);
+  const defenderEffects = defender.availableEffects.filter((e) => defActiveIds.has(e.id));
 
   return {
     attacker: {

@@ -138,5 +138,5 @@ export function GameState({
   const chips = side === 'attacker' ? attackerChips : defenderChips;
   if (!chips) return null;
 
-  return <div className="flex flex-wrap gap-2">{chips}</div>;
+  return <>{chips}</>;
 }

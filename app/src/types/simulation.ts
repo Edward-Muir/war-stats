@@ -1,5 +1,5 @@
 import type { AttackerGameState, DefenderGameState } from './config';
-import type { ParsedStratagemEffect } from '../logic/stratagem-effects';
+import type { UnitEffect } from './effects';
 
 // ─── Dice Expressions ────────────────────────────────────────────
 
@@ -118,11 +118,11 @@ export interface SimulationInput {
   attacker: {
     weaponGroups: ResolvedWeaponGroup[];
     gameState: AttackerGameState;
-    attackerEffects: ParsedStratagemEffect[];
+    attackerEffects: UnitEffect[];
   };
   defender: DefenderProfile & {
     gameState: DefenderGameState;
-    defenderEffects: ParsedStratagemEffect[];
+    defenderEffects: UnitEffect[];
   };
   iterations: number;
 }

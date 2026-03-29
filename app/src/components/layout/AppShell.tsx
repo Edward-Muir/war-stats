@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Crosshair, Menu, Settings, Swords } from 'lucide-react';
 import { useAppStore } from '../../store/store';
@@ -50,10 +50,12 @@ export function AppShell() {
   const defenderDetachmentName = useAppStore((s) => s.defender.detachmentName);
   const attackerChapter = useAppStore((s) => s.attacker.chapter);
   const defenderChapter = useAppStore((s) => s.defender.chapter);
-  const attackerActiveEffects = useAppStore((s) => s.attacker.activeEffects);
-  const defenderActiveEffects = useAppStore((s) => s.defender.activeEffects);
+  const attackerActiveEffectIds = useAppStore((s) => s.attacker.activeEffectIds);
+  const defenderActiveEffectIds = useAppStore((s) => s.defender.activeEffectIds);
   const toggleAttackerEffect = useAppStore((s) => s.toggleAttackerEffect);
   const toggleDefenderEffect = useAppStore((s) => s.toggleDefenderEffect);
+  const setAttackerAvailableEffects = useAppStore((s) => s.setAttackerAvailableEffects);
+  const setDefenderAvailableEffects = useAppStore((s) => s.setDefenderAvailableEffects);
   const attackerFactionData = useAppStore((s) =>
     attackerFactionSlug ? s.loadedFactions[attackerFactionSlug] : undefined
   );
@@ -63,6 +65,35 @@ export function AppShell() {
 
   useFactionData(attackerFactionSlug);
   useFactionData(defenderFactionSlug);
+
+  // Resolve datasheets for ability effect derivation
+  const attackerDatasheet = useMemo(() => {
+    if (!attackerFactionData || !attackerUnitName) return null;
+    const ds = attackerFactionData.datasheets.datasheets;
+    if (attackerChapter && attackerChapter !== 'ADEPTUS ASTARTES') {
+      const ch = ds.find(
+        (d) =>
+          d.name === attackerUnitName &&
+          d.factionKeywords.some((k) => k.toUpperCase() === attackerChapter)
+      );
+      if (ch) return ch;
+    }
+    return ds.find((d) => d.name === attackerUnitName) ?? null;
+  }, [attackerFactionData, attackerUnitName, attackerChapter]);
+
+  const defenderDatasheet = useMemo(() => {
+    if (!defenderFactionData || !defenderUnitName) return null;
+    const ds = defenderFactionData.datasheets.datasheets;
+    if (defenderChapter && defenderChapter !== 'ADEPTUS ASTARTES') {
+      const ch = ds.find(
+        (d) =>
+          d.name === defenderUnitName &&
+          d.factionKeywords.some((k) => k.toUpperCase() === defenderChapter)
+      );
+      if (ch) return ch;
+    }
+    return ds.find((d) => d.name === defenderUnitName) ?? null;
+  }, [defenderFactionData, defenderUnitName, defenderChapter]);
 
   const defaults = useAppStore((s) => s.defaults);
   const setAttackerUnit = useAppStore((s) => s.setAttackerUnit);
@@ -166,19 +197,33 @@ export function AppShell() {
     onDefenderChange: setDefenderGameState,
   };
 
-  // Derive available effect chips from filtered stratagems + rules/enhancements
+  // Derive available effect chips from filtered stratagems + rules/enhancements + unit abilities
   const attackerAvailableEffects = useAvailableEffects(
     attackerStratagems,
     attackMode,
     attackerFactionData,
-    attackerDetachmentName
+    attackerDetachmentName,
+    attackerDatasheet,
+    attackerFactionSlug,
+    'attacker'
   );
   const defenderAvailableEffects = useAvailableEffects(
     defenderStratagems,
     attackMode,
     defenderFactionData,
-    defenderDetachmentName
+    defenderDetachmentName,
+    defenderDatasheet,
+    defenderFactionSlug,
+    'defender'
   );
+
+  // Push available effects into store so buildSimulationInput can access them
+  useEffect(() => {
+    setAttackerAvailableEffects(attackerAvailableEffects);
+  }, [attackerAvailableEffects, setAttackerAvailableEffects]);
+  useEffect(() => {
+    setDefenderAvailableEffects(defenderAvailableEffects);
+  }, [defenderAvailableEffects, setDefenderAvailableEffects]);
 
   return (
     <div className="mx-auto max-w-[600px] min-h-dvh flex flex-col bg-background">
@@ -249,13 +294,15 @@ export function AppShell() {
               <Settings className="h-4 w-4" />
             </Button>
           </div>
-          <EffectChips
-            side="attacker"
-            availableEffects={attackerAvailableEffects}
-            activeEffects={attackerActiveEffects}
-            onToggle={toggleAttackerEffect}
-          />
-          <GameState side="attacker" {...gameStateProps} />
+          <div className="flex flex-wrap gap-2">
+            <EffectChips
+              side="attacker"
+              availableEffects={attackerAvailableEffects}
+              activeEffectIds={attackerActiveEffectIds}
+              onToggle={toggleAttackerEffect}
+            />
+            <GameState side="attacker" {...gameStateProps} />
+          </div>
         </section>
 
         {/* Defender section */}
@@ -294,13 +341,15 @@ export function AppShell() {
               <Settings className="h-4 w-4" />
             </Button>
           </div>
-          <EffectChips
-            side="defender"
-            availableEffects={defenderAvailableEffects}
-            activeEffects={defenderActiveEffects}
-            onToggle={toggleDefenderEffect}
-          />
-          <GameState side="defender" {...gameStateProps} />
+          <div className="flex flex-wrap gap-2">
+            <EffectChips
+              side="defender"
+              availableEffects={defenderAvailableEffects}
+              activeEffectIds={defenderActiveEffectIds}
+              onToggle={toggleDefenderEffect}
+            />
+            <GameState side="defender" {...gameStateProps} />
+          </div>
         </section>
 
         {/* Stats inline */}

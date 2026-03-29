@@ -8,7 +8,8 @@ import type {
 } from '../types/simulation';
 import { EMPTY_KEYWORDS } from '../types/simulation';
 import { DEFAULT_ATTACKER_STATE, DEFAULT_DEFENDER_STATE } from '../types/config';
-import type { ParsedStratagemEffect } from '../logic/stratagem-effects';
+import type { UnitEffect } from '../types/effects';
+import type { StratagemModifier } from '../logic/stratagem-effects';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -68,13 +69,19 @@ function makeInput(
   };
 }
 
-function makeEffect(modifiers: ParsedStratagemEffect['modifiers']): ParsedStratagemEffect {
+function makeEffect(
+  modifiers: StratagemModifier,
+  side: 'attacker' | 'defender' = 'attacker'
+): UnitEffect {
   return {
+    id: 'test-effect',
+    label: 'Test Effect',
+    source: 'Test',
+    side,
+    activation: 'toggle',
     combatType: 'any',
     modifiers,
     conditionals: [],
-    isParsed: true,
-    confidence: 'manual',
   };
 }
 

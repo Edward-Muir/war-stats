@@ -119,6 +119,7 @@ export const ENHANCEMENT_EFFECTS: Record<string, StratagemEffectEntry> = {
 
   // ── Leagues of Votann ────────────────────────────────────────
   'Oathbound Speculator': REROLL_WOUNDS_ONES,
+  'Oathbound Speculator (+1 Wound)': PLUS_1_WOUND,
   'Quake Supervisor': PLUS_1_HIT,
   'Trivarg Cyber Implant': { sustainedHits: 2 },
   'Bastion Shield': AP_WORSEN_1,

@@ -6,7 +6,7 @@ import type {
   WeaponFiringConfig,
   SelectedWeapon,
 } from '../../types/config';
-import { getConflicting } from '../../logic/effect-keys';
+import type { UnitEffect } from '../../types/effects';
 import { DEFAULT_ATTACKER_STATE } from '../../types/config';
 import { loadStoredDefaults } from '../../utils/local-storage';
 import {
@@ -16,6 +16,7 @@ import {
   deriveSelectedWeapons,
 } from '../../logic/wargear-slots';
 import { parseWeaponKeywords } from '../../engine/keywords';
+import { deriveAbilityUnitEffects } from '../../logic/ability-effects';
 import { findSideDatasheet } from './unit-config';
 import type { AppStore } from '../store';
 
@@ -30,13 +31,15 @@ export interface AttackerSlice {
     firingConfig: WeaponFiringConfig[];
     selectedWeapons: SelectedWeapon[];
     gameState: AttackerGameState;
-    activeEffects: string[];
+    activeEffectIds: string[];
+    availableEffects: UnitEffect[];
   };
   setAttackerFaction: (slug: string, chapter?: string | null) => void;
   setAttackerDetachment: (name: string) => void;
   setAttackerUnit: (name: string) => void;
   setAttackerGameState: (state: Partial<AttackerGameState>) => void;
-  toggleAttackerEffect: (key: string) => void;
+  toggleAttackerEffect: (id: string) => void;
+  setAttackerAvailableEffects: (effects: UnitEffect[]) => void;
   resetAttacker: () => void;
 }
 
@@ -52,7 +55,8 @@ const initialAttacker: AttackerSlice['attacker'] = {
   firingConfig: [],
   selectedWeapons: [],
   gameState: { ...DEFAULT_ATTACKER_STATE, ...(_stored?.attackerGameState ?? {}) },
-  activeEffects: [],
+  activeEffectIds: [],
+  availableEffects: [],
 };
 
 /**
@@ -85,6 +89,11 @@ function clearIrrelevantToggles(
   };
 }
 
+/** Get IDs of always-on effects from a UnitEffect array. */
+function getAutoApplyIds(effects: UnitEffect[]): string[] {
+  return effects.filter((e) => e.activation === 'always').map((e) => e.id);
+}
+
 export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> = (set, get) => ({
   attacker: { ...initialAttacker },
 
@@ -98,13 +107,16 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
     }),
 
   setAttackerDetachment: (name) =>
-    set((state) => ({
-      attacker: {
-        ...state.attacker,
-        detachmentName: name,
-        activeEffects: [],
-      },
-    })),
+    set((state) => {
+      const autoIds = getAutoApplyIds(state.attacker.availableEffects);
+      return {
+        attacker: {
+          ...state.attacker,
+          detachmentName: name,
+          activeEffectIds: [...autoIds],
+        },
+      };
+    }),
 
   setAttackerUnit: (name) => {
     const state = get();
@@ -144,6 +156,14 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
     // Auto-clear game state toggles that aren't relevant for the new unit's weapons
     const clearedGameState = clearIrrelevantToggles(gameState, selectedWeapons);
 
+    // Auto-apply always-on offensive ability effects
+    const abilityEffects = deriveAbilityUnitEffects(
+      datasheet,
+      state.attacker.factionSlug!,
+      'attacker'
+    );
+    const autoIds = getAutoApplyIds(abilityEffects);
+
     set({
       attacker: {
         ...state.attacker,
@@ -153,7 +173,8 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
         firingConfig,
         selectedWeapons,
         gameState: clearedGameState,
-        activeEffects: [],
+        activeEffectIds: [...autoIds],
+        availableEffects: abilityEffects,
       },
     });
   },
@@ -211,20 +232,38 @@ export const createAttackerSlice: StateCreator<AppStore, [], [], AttackerSlice> 
       };
     }),
 
-  toggleAttackerEffect: (key) =>
+  toggleAttackerEffect: (id) =>
     set((state) => {
-      const existing = state.attacker.activeEffects;
-      const isActive = existing.includes(key);
+      // Prevent toggling always-on effects
+      const effect = state.attacker.availableEffects.find((e) => e.id === id);
+      if (effect?.activation === 'always') return {};
+
+      const existing = state.attacker.activeEffectIds;
+      const isActive = existing.includes(id);
       if (isActive) {
         return {
-          attacker: { ...state.attacker, activeEffects: existing.filter((k) => k !== key) },
+          attacker: { ...state.attacker, activeEffectIds: existing.filter((k) => k !== id) },
         };
       }
-      // Remove conflicting keys (e.g., rerollHits:ones when enabling rerollHits:all)
-      const conflicts = getConflicting(key);
-      const filtered =
-        conflicts.length > 0 ? existing.filter((k) => !conflicts.includes(k)) : existing;
-      return { attacker: { ...state.attacker, activeEffects: [...filtered, key] } };
+      return { attacker: { ...state.attacker, activeEffectIds: [...existing, id] } };
+    }),
+
+  setAttackerAvailableEffects: (effects) =>
+    set((state) => {
+      // Preserve active selections that still exist in new available set,
+      // and auto-enable always-on effects
+      const newIds = new Set(effects.map((e) => e.id));
+      const preserved = state.attacker.activeEffectIds.filter((id) => newIds.has(id));
+      const autoIds = getAutoApplyIds(effects);
+      const merged = [...new Set([...preserved, ...autoIds])];
+
+      return {
+        attacker: {
+          ...state.attacker,
+          availableEffects: effects,
+          activeEffectIds: merged,
+        },
+      };
     }),
 
   resetAttacker: () => set({ attacker: { ...initialAttacker } }),

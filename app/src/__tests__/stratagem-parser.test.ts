@@ -10,6 +10,8 @@ import type {
 } from '../types/simulation';
 import { EMPTY_KEYWORDS } from '../types/simulation';
 import { DEFAULT_ATTACKER_STATE, DEFAULT_DEFENDER_STATE } from '../types/config';
+import type { UnitEffect } from '../types/effects';
+import type { StratagemModifier, ConditionalModifier } from '../logic/stratagem-effects';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -64,6 +66,23 @@ function makeInput(
       defenderEffects: [],
     },
     iterations,
+  };
+}
+
+function makeEffect(
+  modifiers: StratagemModifier,
+  conditionals: ConditionalModifier[] = [],
+  combatType: 'ranged' | 'melee' | 'any' = 'any'
+): UnitEffect {
+  return {
+    id: 'test-effect',
+    label: 'Test',
+    source: 'Test',
+    side: 'attacker',
+    activation: 'toggle',
+    combatType,
+    modifiers,
+    conditionals,
   };
 }
 
@@ -468,15 +487,7 @@ describe('New Modifier Engine Integration', () => {
 
       // With +1 strength: S5 vs T5 = 4+ to wound = 3/6
       const inputBonus = makeInput([weapon], defender, 1000);
-      inputBonus.attacker.attackerEffects = [
-        {
-          combatType: 'any',
-          modifiers: { strengthBonus: 1 },
-          conditionals: [],
-          isParsed: true,
-          confidence: 'manual',
-        },
-      ];
+      inputBonus.attacker.attackerEffects = [makeEffect({ strengthBonus: 1 })];
       const resultBonus = runSimulation(inputBonus);
 
       // S5 vs T5 should wound ~50% more than S4 vs T5
@@ -499,15 +510,7 @@ describe('New Modifier Engine Integration', () => {
 
       // +1 attack per model doubles attacks (1 → 2)
       const inputBonus = makeInput([weapon], defender, 1000);
-      inputBonus.attacker.attackerEffects = [
-        {
-          combatType: 'any',
-          modifiers: { bonusAttacks: 1 },
-          conditionals: [],
-          isParsed: true,
-          confidence: 'manual',
-        },
-      ];
+      inputBonus.attacker.attackerEffects = [makeEffect({ bonusAttacks: 1 })];
       const resultBonus = runSimulation(inputBonus);
 
       // Should roughly double damage
@@ -531,15 +534,7 @@ describe('New Modifier Engine Integration', () => {
 
       // +1 damage per wound (1 → 2)
       const inputBonus = makeInput([weapon], defender, 1000);
-      inputBonus.attacker.attackerEffects = [
-        {
-          combatType: 'any',
-          modifiers: { damageBonus: 1 },
-          conditionals: [],
-          isParsed: true,
-          confidence: 'manual',
-        },
-      ];
+      inputBonus.attacker.attackerEffects = [makeEffect({ damageBonus: 1 })];
       const resultBonus = runSimulation(inputBonus);
 
       expect(resultBonus.summary.damage.mean).toBeGreaterThan(resultBase.summary.damage.mean * 1.5);
@@ -561,13 +556,7 @@ describe('New Modifier Engine Integration', () => {
       const inputOff = makeInput([weapon], defender, 1000);
       inputOff.defender.gameState.closestTarget = false;
       inputOff.attacker.attackerEffects = [
-        {
-          combatType: 'any',
-          modifiers: {},
-          conditionals: [{ condition: { type: 'closestTarget' }, modifiers: { woundModifier: 1 } }],
-          isParsed: true,
-          confidence: 'manual',
-        },
+        makeEffect({}, [{ condition: { type: 'closestTarget' }, modifiers: { woundModifier: 1 } }]),
       ];
       const resultOff = runSimulation(inputOff);
 
@@ -575,13 +564,7 @@ describe('New Modifier Engine Integration', () => {
       const inputOn = makeInput([weapon], defender, 1000);
       inputOn.defender.gameState.closestTarget = true;
       inputOn.attacker.attackerEffects = [
-        {
-          combatType: 'any',
-          modifiers: {},
-          conditionals: [{ condition: { type: 'closestTarget' }, modifiers: { woundModifier: 1 } }],
-          isParsed: true,
-          confidence: 'manual',
-        },
+        makeEffect({}, [{ condition: { type: 'closestTarget' }, modifiers: { woundModifier: 1 } }]),
       ];
       const resultOn = runSimulation(inputOn);
 
@@ -606,18 +589,12 @@ describe('New Modifier Engine Integration', () => {
       });
       const defender = makeDefender({ toughness: 3, save: 7, wounds: 1, modelCount: 200 });
 
-      const effect = {
-        combatType: 'any' as const,
-        modifiers: {},
-        conditionals: [
-          {
-            condition: { type: 'weaponHasKeyword' as const, weaponKeyword: 'assault' as const },
-            modifiers: { sustainedHits: 1 },
-          },
-        ],
-        isParsed: true,
-        confidence: 'manual' as const,
-      };
+      const effect = makeEffect({}, [
+        {
+          condition: { type: 'weaponHasKeyword' as const, weaponKeyword: 'assault' as const },
+          modifiers: { sustainedHits: 1 },
+        },
+      ]);
 
       const inputAssault = makeInput([assaultWeapon], defender, 2000);
       inputAssault.attacker.attackerEffects = [effect];

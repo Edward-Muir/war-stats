@@ -1,5 +1,8 @@
 import type { Stratagem } from '../types/data';
 import type { ParsedWeaponKeywords } from '../types/simulation';
+import type { UnitEffect } from '../types/effects';
+import { formatEffectLabel, summarizeModifiers } from '../types/effects';
+import { modifierMatchesSide, modifiersMatchSide } from './modifier-templates';
 import { parseStratagemEffectText } from './stratagem-parser';
 import { STRATAGEM_EFFECTS } from './stratagem-effect-table';
 
@@ -164,4 +167,70 @@ export function resolveStratagemEffect(stratagem: Stratagem): ParsedStratagemEff
     isParsed: false,
     confidence: 'low',
   };
+}
+
+// ─── Derive UnitEffect[] from Stratagems ──────────────────────
+
+/**
+ * Convert available stratagems into structured UnitEffect[].
+ * Only includes stratagems with parseable effects.
+ */
+export function deriveStratagemUnitEffects(
+  stratagems: Stratagem[],
+  attackMode: 'ranged' | 'melee',
+  side: 'attacker' | 'defender'
+): UnitEffect[] {
+  const effects: UnitEffect[] = [];
+
+  for (const strat of stratagems) {
+    const resolved = resolveStratagemEffect(strat);
+    if (!resolved.isParsed) continue;
+
+    // Filter by combat type
+    if (resolved.combatType !== 'any' && resolved.combatType !== attackMode) continue;
+
+    if (resolved.conditionals.length > 0) {
+      // Skip conditional entries with no modifiers matching this side
+      const baseMatch = modifiersMatchSide(resolved.modifiers, side);
+      const condMatch = resolved.conditionals.some((c) => modifiersMatchSide(c.modifiers, side));
+      if (!baseMatch && !condMatch) continue;
+
+      // Keep conditional entries as single chips
+      const baseSummary = summarizeModifiers(resolved.modifiers);
+      const label =
+        baseSummary !== 'No effect'
+          ? baseSummary
+          : summarizeModifiers(resolved.conditionals[0].modifiers);
+
+      effects.push({
+        id: `stratagem::${strat.name}`,
+        label,
+        source: `Stratagem: ${strat.name}`,
+        side,
+        activation: 'toggle',
+        combatType: resolved.combatType,
+        modifiers: resolved.modifiers,
+        conditionals: resolved.conditionals,
+      });
+    } else {
+      // Decompose into per-modifier chips
+      for (const [key, value] of Object.entries(resolved.modifiers)) {
+        if (value === undefined || value === false || value === 0) continue;
+        if (!modifierMatchesSide(key, value, side)) continue;
+        const singleMod = { [key]: value } as StratagemModifier;
+        effects.push({
+          id: `stratagem::${strat.name}::${key}`,
+          label: formatEffectLabel(singleMod),
+          source: `Stratagem: ${strat.name}`,
+          side,
+          activation: 'toggle',
+          combatType: resolved.combatType,
+          modifiers: singleMod,
+          conditionals: [],
+        });
+      }
+    }
+  }
+
+  return effects;
 }

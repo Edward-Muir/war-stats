@@ -3,13 +3,11 @@ import type {
   ResolvedWeaponGroup,
   DefenderProfile,
   RerollPolicy,
+  ParsedWeaponKeywords,
 } from '../types/simulation';
 import type { AttackerGameState, DefenderGameState } from '../types/config';
-import type {
-  ParsedStratagemEffect,
-  StratagemCondition,
-  StratagemModifier,
-} from '../logic/stratagem-effects';
+import type { StratagemCondition, StratagemModifier } from '../logic/stratagem-effects';
+import type { UnitEffect, WeaponScope } from '../types/effects';
 
 function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
@@ -71,6 +69,21 @@ function computeCritWoundOn(
 function upgradeReroll(current: RerollPolicy, incoming: 'ones' | 'all'): RerollPolicy {
   if (current === 'all') return 'all';
   return incoming;
+}
+
+/** Check whether a weapon matches an effect's weapon scope. */
+function matchesWeaponScope(scope: WeaponScope | undefined, weapon: ResolvedWeaponGroup): boolean {
+  if (!scope) return true;
+  if (scope.weaponNameIncludes) {
+    if (!weapon.name.toLowerCase().includes(scope.weaponNameIncludes.toLowerCase())) {
+      return false;
+    }
+  }
+  if (scope.weaponHasKeyword) {
+    const key = scope.weaponHasKeyword as keyof ParsedWeaponKeywords;
+    if (!weapon.keywords[key]) return false;
+  }
+  return true;
 }
 
 /** Evaluate a stratagem condition against current game state and weapon. */
@@ -193,16 +206,17 @@ function applyDefenderMod(s: ModState, m: StratagemModifier): void {
   applyDefenderStatOverrides(s, m);
 }
 
-/** Fold attacker stratagem effects (base + conditional) into state. */
+/** Fold attacker effects (base + conditional) into state, respecting weapon scope. */
 function foldAttackerEffects(
   s: ModState,
-  effects: ParsedStratagemEffect[],
+  effects: UnitEffect[],
   weapon: ResolvedWeaponGroup,
   attackerState: AttackerGameState,
   defenderState: DefenderGameState
 ): void {
   for (const effect of effects) {
     if (effect.combatType !== 'any' && effect.combatType !== weapon.type) continue;
+    if (!matchesWeaponScope(effect.weaponScope, weapon)) continue;
     applyAttackerMod(s, effect.modifiers, attackerState.charged);
     for (const c of effect.conditionals) {
       if (evaluateCondition(c.condition, weapon, attackerState, defenderState)) {
@@ -212,16 +226,17 @@ function foldAttackerEffects(
   }
 }
 
-/** Fold defender stratagem effects (base + conditional) into state. */
+/** Fold defender effects (base + conditional) into state, respecting weapon scope. */
 function foldDefenderEffects(
   s: ModState,
-  effects: ParsedStratagemEffect[],
+  effects: UnitEffect[],
   weapon: ResolvedWeaponGroup,
   attackerState: AttackerGameState,
   defenderState: DefenderGameState
 ): void {
   for (const effect of effects) {
     if (effect.combatType !== 'any' && effect.combatType !== weapon.type) continue;
+    if (!matchesWeaponScope(effect.weaponScope, weapon)) continue;
     applyDefenderMod(s, effect.modifiers);
     for (const c of effect.conditionals) {
       if (evaluateCondition(c.condition, weapon, attackerState, defenderState)) {
@@ -240,8 +255,8 @@ export function computeModifiers(
   attackerState: AttackerGameState,
   defenderState: DefenderGameState,
   defender: DefenderProfile,
-  attackerEffects: ParsedStratagemEffect[] = [],
-  defenderEffects: ParsedStratagemEffect[] = []
+  attackerEffects: UnitEffect[] = [],
+  defenderEffects: UnitEffect[] = []
 ): ResolvedModifiers {
   const kw = weapon.keywords;
 

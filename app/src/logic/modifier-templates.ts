@@ -38,6 +38,65 @@ export const IGNORE_ALL_PENALTIES: StratagemModifier = {
 };
 export const REROLL_SAVES_ONES: StratagemModifier = { rerollSaves: 'ones' };
 
+// ─── Modifier Side Classification ─────────────────────────────
+// hitModifier / woundModifier are dual-polarity: positive = offensive, negative = defensive.
+// All other keys are unambiguously one side.
+
+const OFFENSIVE_MODIFIER_KEYS = new Set([
+  'apImprovement',
+  'rerollHits',
+  'rerollWounds',
+  'critHitOn',
+  'critWoundOn',
+  'lethalHits',
+  'sustainedHits',
+  'devastatingWounds',
+  'ignoresCover',
+  'lance',
+  'bonusAttacks',
+  'strengthBonus',
+  'damageBonus',
+  'ignoreHitPenalties',
+  'ignoreWoundPenalties',
+]);
+
+const DEFENSIVE_MODIFIER_KEYS = new Set([
+  'feelNoPain',
+  'damageReduction',
+  'saveModifier',
+  'invulnerableSave',
+  'rerollSaves',
+  'toughnessBonus',
+  'woundsBonus',
+  'saveOverride',
+  'grantsStealth',
+  'grantsBenefitOfCover',
+]);
+
+/** Check whether a modifier key+value pair is relevant for the given side. */
+export function modifierMatchesSide(
+  key: string,
+  value: unknown,
+  side: 'attacker' | 'defender'
+): boolean {
+  if (key === 'hitModifier' || key === 'woundModifier') {
+    return side === 'attacker' ? (value as number) > 0 : (value as number) < 0;
+  }
+  return side === 'attacker' ? OFFENSIVE_MODIFIER_KEYS.has(key) : DEFENSIVE_MODIFIER_KEYS.has(key);
+}
+
+/** Check whether a modifier object has ANY keys matching the given side. */
+export function modifiersMatchSide(
+  mods: StratagemModifier,
+  side: 'attacker' | 'defender'
+): boolean {
+  for (const [key, value] of Object.entries(mods)) {
+    if (value === undefined || value === false || value === 0) continue;
+    if (modifierMatchesSide(key, value, side)) return true;
+  }
+  return false;
+}
+
 export function merge(...mods: StratagemModifier[]): StratagemModifier {
   const result: StratagemModifier = {};
   for (const m of mods) Object.assign(result, m);
