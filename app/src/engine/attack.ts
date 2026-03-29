@@ -37,7 +37,20 @@ function resolveHitRoll(
     return { hit: true, isCritHit: false };
   }
 
-  const hitRoll = rollD6();
+  let hitRoll = rollD6();
+  const unmodifiedHit = hitRoll;
+
+  // Rerolls happen before modifiers (10e rules)
+  if (
+    modifiers.rerollHits === 'all' &&
+    unmodifiedHit < skill &&
+    unmodifiedHit < modifiers.critHitOn
+  ) {
+    hitRoll = rollD6();
+  } else if (modifiers.rerollHits === 'ones' && unmodifiedHit === 1) {
+    hitRoll = rollD6();
+  }
+
   if (hitRoll === 1) return null; // Nat 1 always fails
 
   if (hitRoll >= modifiers.critHitOn) {
@@ -58,7 +71,11 @@ function resolveWoundRoll(
   let woundRoll = rollD6();
   const unmodifiedWound = woundRoll;
 
-  if (modifiers.rerollWounds === 'all' && unmodifiedWound < woundThreshold) {
+  if (
+    modifiers.rerollWounds === 'all' &&
+    unmodifiedWound < woundThreshold &&
+    unmodifiedWound < modifiers.critWoundOn
+  ) {
     woundRoll = rollD6();
   } else if (modifiers.rerollWounds === 'ones' && unmodifiedWound === 1) {
     woundRoll = rollD6();
