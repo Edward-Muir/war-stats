@@ -1,17 +1,17 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Crosshair, Menu, Settings, Swords } from 'lucide-react';
 import { useAppStore } from '../../store/store';
 import { useFactionData } from '../../data/hooks';
 import { GameState } from '../game-state/GameState';
 import { EffectChips } from '../game-state/EffectChips';
-import { deriveAvailableEffects } from '../../logic/effect-keys';
+import { useAvailableEffects } from '../../hooks/useAvailableEffects';
 import { StatsPreview } from '../simulation/StatsPreview';
 import { FactionOverlay } from '../overlays/FactionOverlay';
 import { UnitOverlay } from '../overlays/UnitOverlay';
 import { ConfigOverlay } from '../overlays/ConfigOverlay';
 import { MethodologyOverlay } from '../overlays/MethodologyOverlay';
-import { DefaultsOverlay } from '../overlays/DefaultsOverlay';
+import { SettingsOverlay } from '../overlays/SettingsOverlay';
 import { BurgerMenu } from './BurgerMenu';
 import { FactionIcon } from '../shared/FactionIcon';
 import { useFilteredStratagems } from '../../hooks/useFilteredStratagems';
@@ -28,7 +28,7 @@ export function AppShell() {
   const [defenderConfigOpen, setDefenderConfigOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
-  const [defaultsOpen, setDefaultsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
 
   // Store state
@@ -64,18 +64,65 @@ export function AppShell() {
   useFactionData(attackerFactionSlug);
   useFactionData(defenderFactionSlug);
 
+  const defaults = useAppStore((s) => s.defaults);
   const setAttackerUnit = useAppStore((s) => s.setAttackerUnit);
   const setDefenderUnit = useAppStore((s) => s.setDefenderUnit);
+  const setAttackerDetachment = useAppStore((s) => s.setAttackerDetachment);
+  const setDefenderDetachment = useAppStore((s) => s.setDefenderDetachment);
+  const setCurrentAsDefaults = useAppStore((s) => s.setCurrentAsDefaults);
+
   useEffect(() => {
     if (attackerFactionData && !attackerUnitName) {
-      setAttackerUnit('Intercessor Squad');
+      const name = defaults.attackerUnitName ?? 'Intercessor Squad';
+      const exists = attackerFactionData.datasheets.datasheets.some((d) => d.name === name);
+      setAttackerUnit(exists ? name : 'Intercessor Squad');
     }
-  }, [attackerFactionData, attackerUnitName, setAttackerUnit]);
+  }, [attackerFactionData, attackerUnitName, setAttackerUnit, defaults.attackerUnitName]);
   useEffect(() => {
     if (defenderFactionData && !defenderUnitName) {
-      setDefenderUnit('Intercessor Squad');
+      const name = defaults.defenderUnitName ?? 'Intercessor Squad';
+      const exists = defenderFactionData.datasheets.datasheets.some((d) => d.name === name);
+      setDefenderUnit(exists ? name : 'Intercessor Squad');
     }
-  }, [defenderFactionData, defenderUnitName, setDefenderUnit]);
+  }, [defenderFactionData, defenderUnitName, setDefenderUnit, defaults.defenderUnitName]);
+  useEffect(() => {
+    if (
+      attackerFactionData &&
+      attackerUnitName &&
+      !attackerDetachmentName &&
+      defaults.attackerDetachmentName
+    ) {
+      const exists = attackerFactionData.rules.detachments.some(
+        (d) => d.name === defaults.attackerDetachmentName
+      );
+      if (exists) setAttackerDetachment(defaults.attackerDetachmentName);
+    }
+  }, [
+    attackerFactionData,
+    attackerUnitName,
+    attackerDetachmentName,
+    setAttackerDetachment,
+    defaults.attackerDetachmentName,
+  ]);
+  useEffect(() => {
+    if (
+      defenderFactionData &&
+      defenderUnitName &&
+      !defenderDetachmentName &&
+      defaults.defenderDetachmentName
+    ) {
+      const exists = defenderFactionData.rules.detachments.some(
+        (d) => d.name === defaults.defenderDetachmentName
+      );
+      if (exists) setDefenderDetachment(defaults.defenderDetachmentName);
+    }
+  }, [
+    defenderFactionData,
+    defenderUnitName,
+    defenderDetachmentName,
+    setDefenderDetachment,
+    defaults.defenderDetachmentName,
+  ]);
 
   const attackerFactionName = factionIndex?.factions.find(
     (f) => f.slug === attackerFactionSlug
@@ -119,14 +166,18 @@ export function AppShell() {
     onDefenderChange: setDefenderGameState,
   };
 
-  // Derive available effect chips from filtered stratagems
-  const attackerAvailableEffects = useMemo(
-    () => deriveAvailableEffects(attackerStratagems, attackMode),
-    [attackerStratagems, attackMode]
+  // Derive available effect chips from filtered stratagems + rules/enhancements
+  const attackerAvailableEffects = useAvailableEffects(
+    attackerStratagems,
+    attackMode,
+    attackerFactionData,
+    attackerDetachmentName
   );
-  const defenderAvailableEffects = useMemo(
-    () => deriveAvailableEffects(defenderStratagems, attackMode),
-    [defenderStratagems, attackMode]
+  const defenderAvailableEffects = useAvailableEffects(
+    defenderStratagems,
+    attackMode,
+    defenderFactionData,
+    defenderDetachmentName
   );
 
   return (
@@ -294,15 +345,16 @@ export function AppShell() {
           setMenuOpen(false);
           setMethodologyOpen(true);
         }}
-        onOpenDefaults={() => {
+        onOpenSettings={() => {
           setMenuOpen(false);
-          setDefaultsOpen(true);
+          setSettingsOpen(true);
         }}
+        onSetAsDefault={setCurrentAsDefaults}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
       <MethodologyOverlay isOpen={methodologyOpen} onClose={() => setMethodologyOpen(false)} />
-      <DefaultsOverlay isOpen={defaultsOpen} onClose={() => setDefaultsOpen(false)} />
+      <SettingsOverlay isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

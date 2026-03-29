@@ -93,7 +93,7 @@ import { getTotalModels } from '../../logic/wargear-slots';
 import { buildSyntheticEffect } from '../../logic/effect-keys';
 
 function buildSimulationInput(state: AppStore): SimulationInput | null {
-  const { attacker, defender, simulation } = state;
+  const { attacker, defender } = state;
 
   // Need both units selected
   if (!attacker.factionSlug || !attacker.unitName) return null;
@@ -134,7 +134,7 @@ function buildSimulationInput(state: AppStore): SimulationInput | null {
       gameState: defender.gameState,
       defenderEffects,
     },
-    iterations: simulation.iterations,
+    iterations: state.defaults.simulationIterations,
   };
 }
 
@@ -146,8 +146,13 @@ export function initAutoRun(store: StoreApi<AppStore>) {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   store.subscribe((state, prev) => {
-    // Only react to attacker or defender changes
-    if (state.attacker === prev.attacker && state.defender === prev.defender) return;
+    // React to attacker, defender, or iteration changes
+    if (
+      state.attacker === prev.attacker &&
+      state.defender === prev.defender &&
+      state.defaults.simulationIterations === prev.defaults.simulationIterations
+    )
+      return;
 
     const canRun = !!state.attacker.unitName && !!state.defender.unitName;
     if (!canRun) return;

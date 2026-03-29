@@ -92,15 +92,24 @@ function FactionSection({
   );
 }
 
-const ITERATION_PRESETS = [1000, 5000, 10000, 50000] as const;
+const MIN_ITERATIONS = 10000;
+const MAX_ITERATIONS = 1000000;
+const STEP = 10000;
+
+function clampIterations(n: number): number {
+  return Math.max(MIN_ITERATIONS, Math.min(MAX_ITERATIONS, Math.round(n / STEP) * STEP));
+}
 
 /** Inner form that mounts fresh each time the overlay opens, so draft starts from store defaults. */
-function DefaultsForm({ onClose }: { onClose: () => void }) {
+function SettingsForm({ onClose }: { onClose: () => void }) {
   const defaults = useAppStore((s) => s.defaults);
   const setDefaults = useAppStore((s) => s.setDefaults);
   const resetDefaults = useAppStore((s) => s.resetDefaults);
 
-  const [draft, setDraft] = useState<StoredDefaults>(() => ({ ...defaults }));
+  const [draft, setDraft] = useState<StoredDefaults>(() => ({
+    ...defaults,
+    simulationIterations: clampIterations(defaults.simulationIterations),
+  }));
 
   const updateDraft = (update: Partial<StoredDefaults>) => {
     setDraft((prev) => ({ ...prev, ...update }));
@@ -271,26 +280,34 @@ function DefaultsForm({ onClose }: { onClose: () => void }) {
         </div>
       </section>
 
-      {/* Simulation Defaults */}
+      {/* Simulation Settings */}
       <section className="space-y-3">
         <h3 className={sectionTitle}>Simulation</h3>
         <div>
-          <p className="text-xs text-muted-foreground mb-2">Iterations</p>
-          <div className="flex flex-wrap gap-2">
-            {ITERATION_PRESETS.map((n) => (
-              <Toggle
-                key={n}
-                pressed={draft.simulationIterations === n}
-                onPressedChange={() => updateDraft({ simulationIterations: n })}
-                className={cn(
-                  'h-9 rounded-full border border-border px-3.5 text-xs font-semibold data-[state=off]:bg-transparent transition-transform hover:-translate-y-0.5 active:scale-95',
-                  draft.simulationIterations === n &&
-                    'border-foreground bg-foreground/10 text-foreground'
-                )}
-              >
-                {n.toLocaleString()}
-              </Toggle>
-            ))}
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-xs text-muted-foreground">Iterations</p>
+            <span className="text-sm font-semibold tabular-nums">
+              {draft.simulationIterations.toLocaleString()}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={MIN_ITERATIONS}
+            max={MAX_ITERATIONS}
+            step={STEP}
+            value={draft.simulationIterations}
+            onChange={(e) => updateDraft({ simulationIterations: Number(e.target.value) })}
+            className="w-full h-2 rounded-full appearance-none cursor-pointer bg-muted accent-foreground
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-sm
+              [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background
+              [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
+              [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:shadow-sm
+              [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:border-solid"
+          />
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <span>10K</span>
+            <span>1M</span>
           </div>
         </div>
       </section>
@@ -314,10 +331,10 @@ function DefaultsForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function DefaultsOverlay({ isOpen, onClose }: Props) {
+export function SettingsOverlay({ isOpen, onClose }: Props) {
   return (
-    <Overlay isOpen={isOpen} onClose={onClose} title="Defaults">
-      {isOpen && <DefaultsForm onClose={onClose} />}
+    <Overlay isOpen={isOpen} onClose={onClose} title="Settings">
+      {isOpen && <SettingsForm onClose={onClose} />}
     </Overlay>
   );
 }

@@ -31,6 +31,10 @@ export interface StratagemModifier {
   saveModifier?: number;
   invulnerableSave?: number;
   rerollSaves?: 'ones' | 'all';
+  // Defender stat bonuses
+  toughnessBonus?: number; // +N to Toughness characteristic
+  woundsBonus?: number; // +N to Wounds characteristic
+  saveOverride?: number; // Set Save to N+ (absolute, e.g. 2 = Sv 2+)
   // Ability grants
   grantsStealth?: boolean; // Defender: -1 to ranged hit rolls
   grantsBenefitOfCover?: boolean; // Defender: +1 to save

@@ -104,12 +104,18 @@ function resolveSave(modifiers: ResolvedModifiers, defender: DefenderProfile): b
         : Math.min(effectiveInvuln, modifiers.invulnOverride);
   }
 
+  // Apply save override (e.g., Artificer Armour sets save to 2+)
+  const effectiveSave =
+    modifiers.saveOverride !== null
+      ? Math.min(defender.save, modifiers.saveOverride)
+      : defender.save;
+
   /** Check whether a roll passes the save. */
   const passes = (roll: number): boolean => {
     if (roll === 1) return false;
     const armourSave = roll - modifiers.apValue + modifiers.coverBonus;
     const invulnPasses = effectiveInvuln !== null && roll >= effectiveInvuln;
-    return armourSave >= defender.save || invulnPasses;
+    return armourSave >= effectiveSave || invulnPasses;
   };
 
   // Reroll saves from stratagems
@@ -159,7 +165,8 @@ export function resolveAttack(
     // Lethal Hits: critical hit auto-wounds (not a critical wound)
     result.wound = true;
   } else {
-    const woundResult = resolveWoundRoll(strength, defender.toughness, modifiers);
+    const effectiveToughness = defender.toughness + modifiers.toughnessBonus;
+    const woundResult = resolveWoundRoll(strength, effectiveToughness, modifiers);
     if (!woundResult || !woundResult.wound) return result;
     result.wound = woundResult.wound;
     result.isCritWound = woundResult.isCritWound;

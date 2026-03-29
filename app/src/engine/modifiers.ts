@@ -125,6 +125,9 @@ interface ModState {
   damageReduction: number;
   feelNoPainOverride: number | null;
   invulnOverride: number | null;
+  toughnessBonus: number;
+  woundsBonus: number;
+  saveOverride: number | null;
 }
 
 /** Apply roll-modifier fields (hit/wound/AP/rerolls/crit thresholds). */
@@ -158,6 +161,16 @@ function applyAttackerMod(s: ModState, m: StratagemModifier, charged: boolean): 
   applyAbilityMods(s, m);
 }
 
+/** Apply defender stat-override fields (toughness, wounds, save). */
+function applyDefenderStatOverrides(s: ModState, m: StratagemModifier): void {
+  if (m.toughnessBonus) s.toughnessBonus += m.toughnessBonus;
+  if (m.woundsBonus) s.woundsBonus += m.woundsBonus;
+  if (m.saveOverride) {
+    s.saveOverride =
+      s.saveOverride === null ? m.saveOverride : Math.min(s.saveOverride, m.saveOverride);
+  }
+}
+
 /** Apply a defender stratagem modifier to the accumulator. */
 function applyDefenderMod(s: ModState, m: StratagemModifier): void {
   if (m.hitModifier) s.hitMod += m.hitModifier;
@@ -177,6 +190,7 @@ function applyDefenderMod(s: ModState, m: StratagemModifier): void {
   if (m.rerollSaves) s.rerollSaves = upgradeReroll(s.rerollSaves, m.rerollSaves);
   if (m.grantsStealth) s.grantsStealth = true;
   if (m.grantsBenefitOfCover) s.grantsBenefitOfCover = true;
+  applyDefenderStatOverrides(s, m);
 }
 
 /** Fold attacker stratagem effects (base + conditional) into state. */
@@ -254,6 +268,9 @@ export function computeModifiers(
     damageReduction: 0,
     feelNoPainOverride: null,
     invulnOverride: null,
+    toughnessBonus: 0,
+    woundsBonus: 0,
+    saveOverride: null,
   };
 
   // Keyword-driven bonuses
@@ -312,6 +329,9 @@ function finalizeModifiers(
     damageReduction: s.damageReduction,
     feelNoPainOverride: s.feelNoPainOverride,
     invulnOverride: s.invulnOverride,
+    toughnessBonus: s.toughnessBonus,
+    woundsBonus: s.woundsBonus,
+    saveOverride: s.saveOverride,
   };
 }
 

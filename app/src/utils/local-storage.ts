@@ -5,9 +5,13 @@ const STORAGE_KEY = 'warstats-defaults-v1';
 export interface StoredDefaults {
   attackerFactionSlug: string;
   attackerChapter: string | null;
+  attackerUnitName: string | null;
+  attackerDetachmentName: string | null;
   attackerGameState: Partial<AttackerGameState>;
   defenderFactionSlug: string;
   defenderChapter: string | null;
+  defenderUnitName: string | null;
+  defenderDetachmentName: string | null;
   defenderGameState: Partial<DefenderGameState>;
   simulationIterations: number;
 }
@@ -15,9 +19,13 @@ export interface StoredDefaults {
 export const BUILTIN_DEFAULTS: StoredDefaults = {
   attackerFactionSlug: 'space-marines',
   attackerChapter: null,
+  attackerUnitName: null,
+  attackerDetachmentName: null,
   attackerGameState: {},
   defenderFactionSlug: 'space-marines',
   defenderChapter: null,
+  defenderUnitName: null,
+  defenderDetachmentName: null,
   defenderGameState: {},
   simulationIterations: 10000,
 };

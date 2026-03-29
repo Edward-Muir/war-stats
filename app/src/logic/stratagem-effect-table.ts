@@ -1,57 +1,74 @@
-import type {
-  StratagemModifier,
-  StratagemEffectEntry,
-  ConditionalModifier,
-} from './stratagem-effects';
+import type { StratagemEffectEntry } from './stratagem-effects';
+import {
+  PLUS_1_HIT,
+  MINUS_1_HIT,
+  PLUS_1_WOUND,
+  MINUS_1_WOUND,
+  AP_IMPROVE_1,
+  AP_WORSEN_1,
+  REROLL_HITS,
+  REROLL_HITS_ONES,
+  REROLL_WOUNDS,
+  REROLL_WOUNDS_ONES,
+  LETHAL_HITS,
+  SUSTAINED_1,
+  DEVASTATING_WOUNDS,
+  IGNORES_COVER,
+  LANCE,
+  CRIT_HIT_5,
+  FNP_4,
+  FNP_5,
+  FNP_6,
+  MINUS_1_DAMAGE,
+  INVULN_4,
+  INVULN_5,
+  BONUS_ATTACKS_1,
+  STRENGTH_BONUS_1,
+  DAMAGE_BONUS_1,
+  GRANTS_STEALTH,
+  GRANTS_COVER,
+  IGNORE_HIT_PENALTIES,
+  IGNORE_ALL_PENALTIES,
+  REROLL_SAVES_ONES,
+  merge,
+  conditional,
+} from './modifier-templates';
 
-// ─── Reusable Templates ─────────────────────────────────────────
-
-const PLUS_1_HIT: StratagemModifier = { hitModifier: 1 };
-const MINUS_1_HIT: StratagemModifier = { hitModifier: -1 };
-const PLUS_1_WOUND: StratagemModifier = { woundModifier: 1 };
-const MINUS_1_WOUND: StratagemModifier = { woundModifier: -1 };
-const AP_IMPROVE_1: StratagemModifier = { apImprovement: 1 };
-const AP_WORSEN_1: StratagemModifier = { saveModifier: 1 };
-const REROLL_HITS: StratagemModifier = { rerollHits: 'all' };
-const REROLL_HITS_ONES: StratagemModifier = { rerollHits: 'ones' };
-const REROLL_WOUNDS: StratagemModifier = { rerollWounds: 'all' };
-const REROLL_WOUNDS_ONES: StratagemModifier = { rerollWounds: 'ones' };
-const LETHAL_HITS: StratagemModifier = { lethalHits: true };
-const SUSTAINED_1: StratagemModifier = { sustainedHits: 1 };
-const DEVASTATING_WOUNDS: StratagemModifier = { devastatingWounds: true };
-const IGNORES_COVER: StratagemModifier = { ignoresCover: true };
-const LANCE: StratagemModifier = { lance: true };
-const CRIT_HIT_5: StratagemModifier = { critHitOn: 5 };
-const FNP_4: StratagemModifier = { feelNoPain: 4 };
-const FNP_5: StratagemModifier = { feelNoPain: 5 };
-const FNP_6: StratagemModifier = { feelNoPain: 6 };
-const MINUS_1_DAMAGE: StratagemModifier = { damageReduction: 1 };
-const INVULN_4: StratagemModifier = { invulnerableSave: 4 };
-const INVULN_5: StratagemModifier = { invulnerableSave: 5 };
-const BONUS_ATTACKS_1: StratagemModifier = { bonusAttacks: 1 };
-const STRENGTH_BONUS_1: StratagemModifier = { strengthBonus: 1 };
-const DAMAGE_BONUS_1: StratagemModifier = { damageBonus: 1 };
-const GRANTS_STEALTH: StratagemModifier = { grantsStealth: true };
-const GRANTS_COVER: StratagemModifier = { grantsBenefitOfCover: true };
-const IGNORE_HIT_PENALTIES: StratagemModifier = { ignoreHitPenalties: true };
-const IGNORE_ALL_PENALTIES: StratagemModifier = {
-  ignoreHitPenalties: true,
-  ignoreWoundPenalties: true,
+// Re-export for backwards compatibility with any direct imports
+export {
+  PLUS_1_HIT,
+  MINUS_1_HIT,
+  PLUS_1_WOUND,
+  MINUS_1_WOUND,
+  AP_IMPROVE_1,
+  AP_WORSEN_1,
+  REROLL_HITS,
+  REROLL_HITS_ONES,
+  REROLL_WOUNDS,
+  REROLL_WOUNDS_ONES,
+  LETHAL_HITS,
+  SUSTAINED_1,
+  DEVASTATING_WOUNDS,
+  IGNORES_COVER,
+  LANCE,
+  CRIT_HIT_5,
+  FNP_4,
+  FNP_5,
+  FNP_6,
+  MINUS_1_DAMAGE,
+  INVULN_4,
+  INVULN_5,
+  BONUS_ATTACKS_1,
+  STRENGTH_BONUS_1,
+  DAMAGE_BONUS_1,
+  GRANTS_STEALTH,
+  GRANTS_COVER,
+  IGNORE_HIT_PENALTIES,
+  IGNORE_ALL_PENALTIES,
+  REROLL_SAVES_ONES,
+  merge,
+  conditional,
 };
-const REROLL_SAVES_ONES: StratagemModifier = { rerollSaves: 'ones' };
-
-function merge(...mods: StratagemModifier[]): StratagemModifier {
-  const result: StratagemModifier = {};
-  for (const m of mods) Object.assign(result, m);
-  return result;
-}
-
-function conditional(
-  base: StratagemModifier,
-  ...conds: ConditionalModifier[]
-): { base: StratagemModifier; conditionals: ConditionalModifier[] } {
-  return { base, conditionals: conds };
-}
 
 // ─── Name-to-Effect Mapping Table ───────────────────────────────
 // Keyed by stratagem name. Many names are shared across detachments/factions

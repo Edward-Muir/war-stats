@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, Moon, SlidersHorizontal, Sun, X } from 'lucide-react';
+import { BookOpen, Check, Moon, Save, SlidersHorizontal, Sun, X } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onOpenMethodology: () => void;
-  onOpenDefaults: () => void;
+  onOpenSettings: () => void;
+  onSetAsDefault: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
@@ -24,10 +26,19 @@ export function BurgerMenu({
   isOpen,
   onClose,
   onOpenMethodology,
-  onOpenDefaults,
+  onOpenSettings,
+  onSetAsDefault,
   theme,
   onToggleTheme,
 }: Props) {
+  const [saved, setSaved] = useState(false);
+
+  const handleSetAsDefault = () => {
+    onSetAsDefault();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -79,9 +90,20 @@ export function BurgerMenu({
                 <span>Methodology</span>
               </button>
 
-              <button onClick={onOpenDefaults} className={menuItemClass}>
+              <button onClick={onOpenSettings} className={menuItemClass}>
                 <SlidersHorizontal className={iconClass} />
-                <span>Defaults</span>
+                <span>Settings</span>
+              </button>
+
+              <div className="my-1 mx-4 border-t border-border" />
+
+              <button onClick={handleSetAsDefault} className={menuItemClass} disabled={saved}>
+                {saved ? (
+                  <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                ) : (
+                  <Save className={iconClass} />
+                )}
+                <span>{saved ? 'Saved!' : 'Set as Default'}</span>
               </button>
             </div>
           </motion.div>

@@ -3,10 +3,10 @@ import type {
   SimulationResults,
   SingleSimulationResult,
   DistributionStats,
-} from "../types/simulation";
-import { computeModifiers } from "./modifiers";
-import { resolveWeaponGroup } from "./weapon-resolver";
-import { allocateDamage, buildModelPool } from "./allocation";
+} from '../types/simulation';
+import { computeModifiers } from './modifiers';
+import { resolveWeaponGroup } from './weapon-resolver';
+import { allocateDamage, buildModelPool } from './allocation';
 
 /**
  * Run N Monte Carlo iterations of the full attack sequence.
@@ -39,6 +39,7 @@ function runSingleIteration(input: SimulationInput): SingleSimulationResult {
 
   // Resolve each weapon group
   let effectiveFNP = defender.feelNoPain;
+  let woundsBonus = 0;
 
   for (const weaponGroup of input.attacker.weaponGroups) {
     const modifiers = computeModifiers(
@@ -47,15 +48,19 @@ function runSingleIteration(input: SimulationInput): SingleSimulationResult {
       defender.gameState,
       defender,
       input.attacker.attackerEffects,
-      input.defender.defenderEffects,
+      input.defender.defenderEffects
     );
 
     // Use best FNP between defender's base and stratagem override
     if (modifiers.feelNoPainOverride !== null) {
-      effectiveFNP = effectiveFNP === null
-        ? modifiers.feelNoPainOverride
-        : Math.min(effectiveFNP, modifiers.feelNoPainOverride);
+      effectiveFNP =
+        effectiveFNP === null
+          ? modifiers.feelNoPainOverride
+          : Math.min(effectiveFNP, modifiers.feelNoPainOverride);
     }
+
+    // Track wounds bonus from defender effects (consistent across all groups)
+    if (modifiers.woundsBonus > 0) woundsBonus = Math.max(woundsBonus, modifiers.woundsBonus);
 
     const groupResult = resolveWeaponGroup(weaponGroup, modifiers, defender);
 
@@ -66,14 +71,10 @@ function runSingleIteration(input: SimulationInput): SingleSimulationResult {
     allMortalWounds += groupResult.mortalWounds;
   }
 
-  // Allocate all damage to defender model pool
-  const pool = buildModelPool(defender.modelCount, defender.wounds);
-  const allocation = allocateDamage(
-    allDamage,
-    allMortalWounds,
-    pool,
-    effectiveFNP,
-  );
+  // Allocate all damage to defender model pool (apply wounds bonus)
+  const effectiveWounds = defender.wounds + woundsBonus;
+  const pool = buildModelPool(defender.modelCount, effectiveWounds);
+  const allocation = allocateDamage(allDamage, allMortalWounds, pool, effectiveFNP);
 
   return {
     totalDamage: allocation.totalDamageDealt,

@@ -16,6 +16,7 @@ export const EFFECT_LABELS: Record<string, string> = {
   'woundModifier:+1': '+1 to Wound',
   'woundModifier:-1': '-1 to Wound',
   'apImprovement:1': '+1 AP',
+  'apImprovement:2': '+2 AP',
   'rerollHits:ones': 'Reroll 1s (Hit)',
   'rerollHits:all': 'Reroll Hits',
   'rerollWounds:ones': 'Reroll 1s (Wound)',
@@ -29,21 +30,37 @@ export const EFFECT_LABELS: Record<string, string> = {
   ignoresCover: 'Ignores Cover',
   lance: 'Lance',
   'bonusAttacks:1': '+1 Attacks',
+  'bonusAttacks:2': '+2 Attacks',
+  'bonusAttacks:3': '+3 Attacks',
   'strengthBonus:1': '+1 Strength',
+  'strengthBonus:2': '+2 Strength',
+  'strengthBonus:3': '+3 Strength',
   'damageBonus:1': '+1 Damage',
+  'damageBonus:2': '+2 Damage',
+  'feelNoPain:3': '3+ FNP',
   'feelNoPain:4': '4+ FNP',
   'feelNoPain:5': '5+ FNP',
   'feelNoPain:6': '6+ FNP',
   'damageReduction:1': '-1 Damage',
   'saveModifier:1': 'Worsen AP -1',
+  'invulnerableSave:3': '3++ Invuln',
   'invulnerableSave:4': '4++ Invuln',
   'invulnerableSave:5': '5++ Invuln',
+  'invulnerableSave:6': '6++ Invuln',
   'rerollSaves:ones': 'Reroll 1s (Save)',
   'rerollSaves:all': 'Reroll Saves',
   grantsStealth: 'Stealth',
   grantsBenefitOfCover: 'Cover',
   ignoreHitPenalties: 'Ignore Hit Penalty',
   ignoreWoundPenalties: 'Ignore Wound Penalty',
+  // New: stat characteristic modifiers
+  'toughnessBonus:1': '+1 Toughness',
+  'toughnessBonus:2': '+2 Toughness',
+  'woundsBonus:1': '+1 Wounds',
+  'woundsBonus:2': '+2 Wounds',
+  'woundsBonus:4': '+4 Wounds',
+  'saveOverride:2': 'Sv 2+',
+  'saveOverride:3': 'Sv 3+',
 };
 
 /** Fallback label for keys not in the table. */
@@ -58,11 +75,12 @@ export const CONFLICT_GROUPS: EffectKey[][] = [
   ['rerollHits:ones', 'rerollHits:all'],
   ['rerollWounds:ones', 'rerollWounds:all'],
   ['rerollSaves:ones', 'rerollSaves:all'],
-  ['feelNoPain:4', 'feelNoPain:5', 'feelNoPain:6'],
-  ['invulnerableSave:4', 'invulnerableSave:5'],
+  ['feelNoPain:3', 'feelNoPain:4', 'feelNoPain:5', 'feelNoPain:6'],
+  ['invulnerableSave:3', 'invulnerableSave:4', 'invulnerableSave:5', 'invulnerableSave:6'],
   ['sustainedHits:1', 'sustainedHits:2'],
   ['hitModifier:+1', 'hitModifier:-1'],
   ['woundModifier:+1', 'woundModifier:-1'],
+  ['saveOverride:2', 'saveOverride:3'],
 ];
 
 /** Get all keys in the same conflict group as `key`, excluding `key` itself. */
@@ -90,6 +108,9 @@ const NUMERIC_FIELDS = [
   'damageReduction',
   'saveModifier',
   'invulnerableSave',
+  'toughnessBonus',
+  'woundsBonus',
+  'saveOverride',
 ] as const;
 // String enum fields (ones/all)
 const ENUM_FIELDS = ['rerollHits', 'rerollWounds', 'rerollSaves'] as const;
@@ -105,7 +126,13 @@ const BOOL_FIELDS = [
   'ignoreWoundPenalties',
 ] as const;
 // Fields where lower is better (min-merge)
-const MIN_FIELDS = new Set(['critHitOn', 'critWoundOn', 'feelNoPain', 'invulnerableSave']);
+const MIN_FIELDS = new Set([
+  'critHitOn',
+  'critWoundOn',
+  'feelNoPain',
+  'invulnerableSave',
+  'saveOverride',
+]);
 
 /** Extract individual EffectKeys from a StratagemModifier. */
 export function decomposeModifiers(m: StratagemModifier): EffectKey[] {
