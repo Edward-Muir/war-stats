@@ -24,7 +24,6 @@ import {
   GRANTS_STEALTH,
   GRANTS_COVER,
   IGNORE_HIT_PENALTIES,
-  IGNORE_ALL_PENALTIES,
   merge,
   conditional,
 } from './modifier-templates';
@@ -50,8 +49,14 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
     REROLL_WOUNDS_ONES
   ),
   'Space Marines::Librarius Conclave::Pyromancy Discipline': AP_IMPROVE_1,
-  'Space Marines::Librarius Conclave::Telepathy Discipline': IGNORE_ALL_PENALTIES,
+  'Space Marines::Librarius Conclave::Telepathy Discipline': IGNORE_HIT_PENALTIES,
   'Space Marines::Bastion Task Force::Interlocking Tactics': REROLL_HITS_ONES,
+  'Space Marines::Firestorm Assault Force::Close-range Eradication': STRENGTH_BONUS_1,
+  'Space Marines::Orbital Assault Force::Rapid-drop Deployment': REROLL_WOUNDS_ONES,
+  'Space Marines::Orbital Assault Force::Rapid-drop Deployment (Drop Pod)': merge(
+    REROLL_HITS_ONES,
+    REROLL_WOUNDS_ONES
+  ),
 
   // ═══════════════════════════════════════════════════════════════
   // GREY KNIGHTS
@@ -61,6 +66,7 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Grey Knights::Banishers::Channelled Force (Sustained)': SUSTAINED_1,
   'Grey Knights::Banishers::Channelled Force (Lethal)': LETHAL_HITS,
   'Grey Knights::Warpbane Task Force::Hallowed Ground': REROLL_HITS_ONES,
+  'Grey Knights::Warpbane Task Force::Hallowed Ground (Full Reroll)': REROLL_HITS,
 
   // ═══════════════════════════════════════════════════════════════
   // IMPERIAL AGENTS
@@ -69,8 +75,17 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Imperial Agents::Ordo Xenos::Furor Tactics': SUSTAINED_1,
   'Imperial Agents::Ordo Xenos::Malleus Tactics': LETHAL_HITS,
   'Imperial Agents::Ordo Hereticus::Root out Heresy': IGNORES_COVER,
+  'Imperial Agents::Ordo Hereticus::Root out Heresy (vs Chaos 5+)': merge(
+    IGNORES_COVER,
+    SUSTAINED_1
+  ),
   'Imperial Agents::Ordo Malleus::Destroy the Daemonic': REROLL_HITS_ONES,
+  'Imperial Agents::Ordo Malleus::Destroy the Daemonic (vs Daemon)': merge(
+    REROLL_HITS_ONES,
+    REROLL_WOUNDS_ONES
+  ),
   'Imperial Agents::Imperialis Fleet::Eliminate At All Costs': PLUS_1_HIT,
+  'Imperial Agents::Imperialis Fleet::Acquire At All Costs': INVULN_5,
 
   // ═══════════════════════════════════════════════════════════════
   // IMPERIAL KNIGHTS
@@ -81,6 +96,10 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
     SUSTAINED_1
   ),
   'Imperial Knights::Questor Forgepact::Divine Inspiration': REROLL_HITS_ONES,
+  'Imperial Knights::Questor Forgepact::Divine Inspiration (near Knight)': merge(
+    REROLL_HITS_ONES,
+    REROLL_WOUNDS_ONES
+  ),
 
   // ═══════════════════════════════════════════════════════════════
   // AELDARI
@@ -114,6 +133,7 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   // ═══════════════════════════════════════════════════════════════
 
   "T'au Empire::Kauyon::Patient Hunter": SUSTAINED_1,
+  "T'au Empire::Kauyon::Patient Hunter (Guided)": merge(SUSTAINED_1, IGNORE_HIT_PENALTIES),
   "T'au Empire::Mont'ka::Killing Blow": LETHAL_HITS,
   'T\'au Empire::Retaliation Cadre::Bonded Heroes (12")': STRENGTH_BONUS_1,
   'T\'au Empire::Retaliation Cadre::Bonded Heroes (9")': merge(STRENGTH_BONUS_1, AP_IMPROVE_1),
@@ -131,6 +151,10 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Leagues of Votann::Brandfast Oathband::Mobile Sensor Relays': SUSTAINED_1,
   'Leagues of Votann::Hearthfyre Arsenal::Optimal Application': REROLL_HITS_ONES,
   'Leagues of Votann::Hearthband::Methodical Annihilation': REROLL_WOUNDS_ONES,
+  'Leagues of Votann::Hearthband::Methodical Annihilation (Kahl/Hearthguard)': merge(
+    REROLL_WOUNDS_ONES,
+    AP_IMPROVE_1
+  ),
 
   // ═══════════════════════════════════════════════════════════════
   // CHAOS SPACE MARINES
@@ -151,6 +175,8 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Chaos Space Marines::Creations of Bile::Cholinergic Accelerants': BONUS_ATTACKS_1,
   'Chaos Space Marines::Creations of Bile::Macrotensile Sinews': STRENGTH_BONUS_1,
   'Chaos Space Marines::Creations of Bile::Supracutaneous Chitination': { toughnessBonus: 1 },
+  'Chaos Space Marines::Creations of Bile::Paraneural Reactions': PLUS_1_HIT,
+  'Chaos Space Marines::Creations of Bile::Ophthalmic Enhancement': PLUS_1_HIT,
   'Chaos Space Marines::Nightmare Hunt::Terror Made Manifest (+1 Hit)': PLUS_1_HIT,
   'Chaos Space Marines::Nightmare Hunt::Terror Made Manifest (+1 Wound)': PLUS_1_WOUND,
   "Chaos Space Marines::Huron's Marauders::Huron's Elite": PLUS_1_HIT,
@@ -166,6 +192,7 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Thousand Sons::Warpmeld Pact::Warpmeld Sacrifice (Offensive)': PLUS_1_WOUND,
   'Thousand Sons::Rubricae Phalanx::All is Dust': AP_WORSEN_1,
   'Thousand Sons::Hexwarp Thrallband::Flow of Magic': REROLL_WOUNDS_ONES,
+  'Thousand Sons::Hexwarp Thrallband::Flow of Magic (In Flow)': PLUS_1_WOUND,
 
   // ═══════════════════════════════════════════════════════════════
   // WORLD EATERS
@@ -232,12 +259,10 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
 
   // ═══════════════════════════════════════════════════════════════
   // CHAOS DAEMONS
+  // (No simulatable detachment rules — Slaughterthirst, False
+  //  Majesty, Dreaming Crown, Font of Spores are enhancements,
+  //  not detachment rules; they live in enhancement-effect-table.)
   // ═══════════════════════════════════════════════════════════════
-
-  'Chaos Daemons::Blood Legion::Slaughterthirst': LANCE,
-  'Chaos Daemons::Legion of Excess::False Majesty': PLUS_1_WOUND,
-  'Chaos Daemons::Legion of Excess::Dreaming Crown': PLUS_1_HIT,
-  'Chaos Daemons::Plague Legion::Font of Spores': AP_IMPROVE_1,
 
   // ═══════════════════════════════════════════════════════════════
   // ADEPTA SORORITAS
@@ -253,12 +278,13 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
     {},
     { condition: { type: 'charged' }, modifiers: { bonusAttacks: 1, strengthBonus: 1 } }
   ),
+  'Adepta Sororitas::Champions of Faith::Righteous Purpose': PLUS_1_HIT,
 
   // ═══════════════════════════════════════════════════════════════
   // ADEPTUS CUSTODES
   // ═══════════════════════════════════════════════════════════════
 
-  'Adeptus Custodes::Talons of the Emperor::Deadly Unity': PLUS_1_HIT,
+  'Adeptus Custodes::Talons Of The Emperor::Deadly Unity': PLUS_1_HIT,
   'Adeptus Custodes::Shield Host::Martial Mastery (Crit 5+)': CRIT_HIT_5,
   'Adeptus Custodes::Shield Host::Martial Mastery (+1 AP)': AP_IMPROVE_1,
   'Adeptus Custodes::Auric Champions::Assemblage of Might': PLUS_1_WOUND,
@@ -293,6 +319,8 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Astra Militarum::Recon Element::Masters of Camouflage': GRANTS_COVER,
   'Astra Militarum::Bridgehead Strike::Only the Best': REROLL_HITS_ONES,
   'Astra Militarum::Grizzled Company::Ruthless Discipline': REROLL_HITS_ONES,
+  'Astra Militarum::Siege Regiment::Smoke Shells': GRANTS_STEALTH,
+  'Astra Militarum::Siege Regiment::Incendiary Bombardment': IGNORES_COVER,
 
   // ═══════════════════════════════════════════════════════════════
   // NECRONS
@@ -301,6 +329,7 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Necrons::Awakened Dynasty::Command Protocols': PLUS_1_HIT,
   'Necrons::Annihilation Legion::Annihilation Protocol': AP_IMPROVE_1,
   'Necrons::Canoptek Court::Power Matrix': REROLL_HITS_ONES,
+  'Necrons::Canoptek Court::Power Matrix (In Power Matrix)': REROLL_HITS,
   'Necrons::Obeisance Phalanx::Worthy Foes': PLUS_1_WOUND,
   'Necrons::Starshatter Arsenal::Relentless Onslaught': PLUS_1_HIT,
   'Necrons::Cursed Legion::Cold Fervour': { strengthBonus: 2 },
@@ -319,6 +348,8 @@ export const DETACHMENT_RULE_EFFECTS: Record<string, StratagemEffectEntry> = {
   'Orks::Taktikal Brigade::Shoota Drills': PLUS_1_HIT,
   'Orks::More Dakka!::Dakka! Dakka! Dakka! (Waaagh!)': SUSTAINED_1,
   'Orks::Freebooter Krew::Here Be Loot': SUSTAINED_1,
+  'Orks::Dread Mob::Try Dat Button! (Sustained)': SUSTAINED_1,
+  'Orks::Dread Mob::Try Dat Button! (Lethal)': LETHAL_HITS,
 
   // ═══════════════════════════════════════════════════════════════
   // TYRANIDS
